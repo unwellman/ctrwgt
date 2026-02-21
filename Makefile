@@ -21,19 +21,22 @@ TEST_OBJ = src/test.o $(patsubst %.c,%.o,$(TEST_SRC))
 
 BIN = bin
 EXEC = ctrwgt
+TEST = tests
 
-.PHONY : exec tests libs dirs clean
+.PHONY : tests libs dirs clean
 .SILENT : clean
 
-
-exec : libs dirs $(OBJ) src/main.o tests
+# Default
+$(BIN)/$(EXEC) : libs dirs $(OBJ) src/main.o tests
 	$(CC) $(OBJ) $(LDFLAGS) -o ./$(BIN)/$(EXEC)
 
-tests : libs dirs $(TEST_OBJ)
+$(BIN)/$(TEST) : libs dirs $(TEST_OBJ)
 	$(CC) $(TEST_OBJ) $(LDFLAGS) -o ./$(BIN)/tests
-	./$(BIN)/tests
 
-run : exec
+tests : $(BIN)/$(TEST)
+	./$(BIN)/$(TEST)
+
+run : $(BIN)/$(EXEC)
 	./$(BIN)/$(EXEC)
 
 libs :
