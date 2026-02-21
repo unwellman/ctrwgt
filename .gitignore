@@ -1,0 +1,13 @@
+*
+!.gitignore
+!Makefile
+!src
+src/*
+!src/*.h
+!src/*.c
+!spec
+spec/*
+!spec/*.md
+!lib
+lib/*
+
