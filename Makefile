@@ -10,7 +10,7 @@ ifeq ($(UNAME_S), Darwin)
 	LDFLAGS += -framework IOKit -framework -CoreVideo -framework Cocoa
 endif
 
-SRC = src/actor.c
+SRC = src/actor.c src/world.c
 # Every source file %.c must have a test test_%.c
 TEST_SRC = $(SRC) $(patsubst src/%,src/test_%,$(SRC))
 
@@ -27,7 +27,7 @@ TEST = tests
 .SILENT : clean
 
 # Default
-$(BIN)/$(EXEC) : libs dirs $(OBJ) src/main.o tests
+$(BIN)/$(EXEC) : libs dirs $(OBJ) tests src/main.o
 	$(CC) $(OBJ) $(LDFLAGS) -o ./$(BIN)/$(EXEC)
 
 $(BIN)/$(TEST) : libs dirs $(TEST_OBJ)
@@ -44,9 +44,9 @@ libs :
 dirs :
 	mkdir -p ./$(BIN)
 
-%.o : %.c
-	$(CC) $(CFLAGS) $< -c -o $@
+#%.o : %.c
+#	$(CC) $(CFLAGS) $< -c -o $@
 
 clean :
-	rm -rf $(BIN) $(OBJ)
+	rm -rf $(BIN) $(OBJ) $(TEST_OBJ)
 

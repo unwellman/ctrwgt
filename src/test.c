@@ -18,6 +18,7 @@ int run_tests (struct test_batch batch) {
 
 int main () {
 	assert(!run_tests(actor_tests));
+	assert(!run_tests(world_tests));
 	printf("All tests passing\n\n");
 	return 0;
 }

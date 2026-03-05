@@ -15,7 +15,8 @@ struct test_batch {
 
 int run_tests (struct test_batch tests);
 
-struct test_batch actor_tests;
+extern struct test_batch actor_tests;
+extern struct test_batch world_tests;
 
 #endif
 
