@@ -1,14 +1,14 @@
 SHELL = /bin/sh
 
 CFLAGS = -std=c99 -Wall -Wextra -Wpedantic -Wstrict-aliasing -Werror
-CFLAGS += -Wno-empty-translation-unit
+CFLAGS += -Wno-empty-translation-unit -Wno-unused-parameter
 
 LDFLAGS = -lm
 
 # Assuming required frameworks for MacOS
-ifeq ($(UNAME_S), Darwin)
-	LDFLAGS += -framework IOKit -framework -CoreVideo -framework Cocoa
-endif
+#ifeq ($(UNAME_S), Darwin)
+	#LDFLAGS += -framework IOKit -framework -CoreVideo -framework Cocoa
+#endif
 
 SRC = src/actor.c src/world.c
 # Every source file %.c must have a test test_%.c
@@ -19,18 +19,28 @@ TEST_SRC = $(SRC) $(patsubst src/%,src/test_%,$(SRC))
 OBJ = src/main.o $(patsubst %.c,%.o,$(SRC))
 TEST_OBJ = src/test.o $(patsubst %.c,%.o,$(TEST_SRC))
 
+LIB = lib
 BIN = bin
 EXEC = ctrwgt
 TEST = tests
 
-.PHONY : tests libs dirs clean
+# Need a better way to do this---maybe install SDL to ~
+CFLAGS += -I/usr/local/Cellar/sdl3/3.4.2/include
+LDFLAGS += -F/Users/Noah/SDL
+LDFLAGS += -framework SDL3
+#LDFLAGS += -framework CoreAudio -framework CoreVideo
+#LDFLAGS += -framework Cocoa -framework Metal -framework IOKit
+#LDFLAGS += -framework AudioToolbox -framework ForceFeedback
+#LDFLAGS += -framework CoreHaptics
+
+.PHONY : run tests clean
 .SILENT : clean
 
 # Default
-$(BIN)/$(EXEC) : libs dirs $(OBJ) tests src/main.o
+$(BIN)/$(EXEC) : $(BIN) $(OBJ) tests src/main.o
 	$(CC) $(OBJ) $(LDFLAGS) -o ./$(BIN)/$(EXEC)
 
-$(BIN)/$(TEST) : libs dirs $(TEST_OBJ)
+$(BIN)/$(TEST) : $(BIN) $(TEST_OBJ) #$(LIB)/DUMMY_SDL
 	$(CC) $(TEST_OBJ) $(LDFLAGS) -o ./$(BIN)/tests
 
 tests : $(BIN)/$(TEST)
@@ -39,13 +49,22 @@ tests : $(BIN)/$(TEST)
 run : $(BIN)/$(EXEC)
 	./$(BIN)/$(EXEC)
 
-libs :
+$(LIB)/DUMMY_SDL : $(LIB)
+	cd $(LIB); \
+	git clone https://github.com/libsdl-org/SDL; \
+	cd SDL; \
+	cmake -S . -B build -DSDL_STATIC=ON -DSDL_TESTS=OFF; \
+	cmake --build build;
+	touch $(LIB)/DUMMY_SDL
 
-dirs :
+$(BIN) :
 	mkdir -p ./$(BIN)
 
-#%.o : %.c
-#	$(CC) $(CFLAGS) $< -c -o $@
+$(LIB) :
+	mkdir -p ./$(LIB)
+
+%.o : %.c
+	$(CC) $(CFLAGS) $< -c -o $@
 
 clean :
 	rm -rf $(BIN) $(OBJ) $(TEST_OBJ)
