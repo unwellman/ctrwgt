@@ -1,7 +1,7 @@
 SHELL = /bin/sh
 
 CFLAGS = -std=c99 -Wall -Wextra -Wpedantic -Wstrict-aliasing -Werror
-CFLAGS += -Wno-empty-translation-unit -Wno-unused-parameter
+CFLAGS += -Wno-empty-translation-unit -Wno-unused-parameter -Wno-unused-function
 
 LDFLAGS = -lm
 
@@ -10,7 +10,7 @@ LDFLAGS = -lm
 	#LDFLAGS += -framework IOKit -framework -CoreVideo -framework Cocoa
 #endif
 
-SRC = src/actor.c src/world.c
+SRC = src/actor.c src/world.c src/state.c src/log.c
 # Every source file %.c must have a test test_%.c
 TEST_SRC = $(SRC) $(patsubst src/%,src/test_%,$(SRC))
 
@@ -26,7 +26,7 @@ TEST = tests
 
 # Need a better way to do this---maybe install SDL to ~
 CFLAGS += -I/usr/local/Cellar/sdl3/3.4.2/include
-LDFLAGS += -F/Users/Noah/SDL
+LDFLAGS += -F$(HOME)/SDL
 LDFLAGS += -framework SDL3
 #LDFLAGS += -framework CoreAudio -framework CoreVideo
 #LDFLAGS += -framework Cocoa -framework Metal -framework IOKit

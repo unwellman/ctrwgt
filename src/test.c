@@ -2,13 +2,14 @@
 #include <assert.h>
 
 #include "test.h"
+#include "log.h"
 
 int run_tests (struct test_batch batch) {
 	size_t count = batch.count;
 	struct test *tests = batch.ptr;
 	for (size_t i = 0; i < count; i++) {
 		struct test curr = tests[i];
-		printf("Running %s\n", curr.name);
+		printf("Running %zu %s\n", i, curr.name);
 		int result = curr.func();
 		if (result)
 			return result;
@@ -19,6 +20,8 @@ int run_tests (struct test_batch batch) {
 int main () {
 	assert(!run_tests(actor_tests));
 	assert(!run_tests(world_tests));
+	assert(!run_tests(log_tests));
+	assert(!run_tests(state_tests));
 	printf("All tests passing\n\n");
 	return 0;
 }

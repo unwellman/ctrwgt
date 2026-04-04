@@ -15,13 +15,26 @@ struct test_batch {
 	struct test *ptr;
 };
 
+/* Macro for easier test exporting */
+#define TEST(NAME) { NAME, #NAME }
+/* sizeof(test_list) / sizeof(struct test) should give the number of elements
+ * in a compile-time constant array---works with initial test batches */
+#define EXPORT(test_list, name) \
+	struct test_batch name ## _tests = { \
+		.count = sizeof(test_list) / sizeof(struct test), \
+		.ptr = test_list \
+	}; \
+
 int run_tests (struct test_batch tests);
 
 extern struct test_batch actor_tests;
 extern struct test_batch world_tests;
+extern struct test_batch log_tests;
+extern struct test_batch state_tests;
 
 // Good enough for government work
 #define is_close(a,b) ( ((a) - (b))*((a) - (b)) <= DBL_EPSILON )
+
 
 #endif
 

@@ -5,7 +5,7 @@
 
 SDL_AppResult SDL_AppInit (void **app_state, int argc, char *argv[]) {
 	printf("Initialized!\n");
-	return SDL_APP_SUCCESS;
+	return SDL_APP_CONTINUE;
 }
 
 SDL_AppResult SDL_AppIterate (void *app_state) {
@@ -24,6 +24,6 @@ void SDL_AppQuit (void *app_state, SDL_AppResult result) {
 	else if (result == SDL_APP_FAILURE)
 		printf("Failed to execute\n");
 	else
-		printf("Something went wrong: %d\n", result);
+		printf("Something strange went wrong: %d\n", result);
 }
 

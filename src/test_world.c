@@ -1,15 +1,6 @@
 #include "test.h"
 #include "world.h"
 
-#define NUM_WORLD_TESTS 2
-static struct test TEST_LIST[NUM_WORLD_TESTS];
-// Export
-struct test_batch world_tests = {
-	.count = NUM_WORLD_TESTS,
-	.ptr = TEST_LIST
-};
-
-
 static int test_coord_world_tile (void) {
 	double x, y;
 	coord_world_tile(&x, &y, 49, 0);
@@ -28,8 +19,9 @@ static int test_nearest_tile (void) {
 	return 0;
 }
 
-static struct test TEST_LIST[NUM_WORLD_TESTS] = {
-	{.func = test_coord_world_tile, .name = "test_coord_world_tile"},
-	{.func = test_nearest_tile, .name = "test_nearest_tile"},
+static struct test TEST_LIST[] = {
+	TEST(test_coord_world_tile),
+	TEST(test_nearest_tile)
 };
+EXPORT(TEST_LIST, world)
 
