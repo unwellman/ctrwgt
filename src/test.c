@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <assert.h>
+#include <SDL3/SDL.h>
 
 #include "test.h"
 #include "log.h"

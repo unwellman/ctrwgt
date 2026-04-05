@@ -37,10 +37,22 @@ enum state_response state_stack_push (struct state *ptr) {
 	struct state *tmp = STACK;
 	STACK = ptr;
 	STACK->next = tmp;
+	enum state_response ret;
 	if (STACK->init)
-		return STACK->init(ptr);
-	else
+		ret = STACK->init(ptr);
+	else {
+		log_warn("State <%s> pushed with no initializer", ptr->name);
 		return STATE_CONTINUE;
+	}
+	switch (ret) {
+	case STATE_CONTINUE:
+		return ret;
+	case STATE_RETURN:
+	case STATE_FAILURE:
+	case STATE_DEFER: // Disallowed
+		state_stack_pop();
+		return ret;
+	}
 }
 
 static enum state_response state_stack_pop () {

@@ -35,14 +35,15 @@ struct state {
 			enum state_response prev);
 
 	/* Pass an event to this state */
-	enum state_response (*event)(void *state, void *event);
+	enum state_response (*event)(struct state *self, void *event);
 	
 	/* Prepare this state for destruction */
-	void (*del)(void *state);
+	void (*del)(struct state *self);
 };
 
 /* Push a new state onto the stack and call ptr->init()
- * Guarantees a call to ptr->iterate */
+ * Note that the state will be popped without calling iterate() if it returns
+ * STATE_RETURN. */
 enum state_response state_stack_push (struct state *ptr);
 
 /* Return a pointer to the state on top of the stack without changing the stack */

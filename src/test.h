@@ -17,8 +17,10 @@ struct test_batch {
 
 /* Macro for easier test exporting */
 #define TEST(NAME) { NAME, #NAME }
-/* sizeof(test_list) / sizeof(struct test) should give the number of elements
- * in a compile-time constant array---works with initial test batches */
+/* Export a literal array of tests as a test batch structure.
+ * Note that trailing commas will break the counter.
+ * sizeof(test_list) / sizeof(struct test) should give the number of elements
+ * in a compile-time constant array---works with initial test batches. */
 #define EXPORT(test_list, name) \
 	struct test_batch name ## _tests = { \
 		.count = sizeof(test_list) / sizeof(struct test), \
