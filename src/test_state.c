@@ -10,7 +10,7 @@ static enum state_response init (struct state *self) {
 	return STATE_CONTINUE;
 }
 static enum state_response iterate (struct state *self,
-		enum state_response prev) {
+		enum state_response prev, double dt) {
 	COUNTERS[1]++;
 	return STATE_CONTINUE;
 }
@@ -49,7 +49,7 @@ static int test_state_stack_peek (void) {
 }
 
 static int test_state_stack_iterate (void) {
-	state_stack_iterate();
+	state_stack_iterate(0.0);
 	assert(COUNTERS[1] == 1);
 	return 0;
 }

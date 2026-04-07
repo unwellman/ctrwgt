@@ -11,7 +11,7 @@ static void pop_until (struct state *ptr);
 /* Top of the stack */
 static struct state *STACK = NULL;
 
-enum state_response state_stack_iterate () {
+enum state_response state_stack_iterate (double dt) {
 	enum state_response ret = STATE_DEFER;
 	// This works because next is the first member of struct state
 	struct state *ptr = (struct state *) &STACK;
@@ -23,7 +23,7 @@ enum state_response state_stack_iterate () {
 			return STATE_FAILURE;
 		}
 		if (ptr->iterate)
-			ret = ptr->iterate(ptr, ret);
+			ret = ptr->iterate(ptr, ret, dt);
 	}
 	switch (ret) {
 	case STATE_RETURN:

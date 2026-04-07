@@ -1,3 +1,4 @@
+#include <SDL3/SDL_log.h>
 #include "log.h"
 
 #define LOG_FUNCTION(name, prio) \

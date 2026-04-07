@@ -1,6 +1,8 @@
 #ifndef CTRW_STATE_H
 #define CTRW_STATE_H
 
+#include <stddef.h>
+
 enum state_response {
 	/* State was successful and should be destroyed */
 	STATE_RETURN,
@@ -32,7 +34,7 @@ struct state {
 
 	/* Run the main loop, i.e. the code to draw a frame. */
 	enum state_response (*iterate)(struct state *self,
-			enum state_response prev);
+			enum state_response prev, double dt);
 
 	/* Pass an event to this state */
 	enum state_response (*event)(struct state *self, void *event);
@@ -63,7 +65,7 @@ int state_stack_empty ();
  * and including it will be popped in order.
  * If the bottom state run returns STATE_CONTINUE, then this function returns
  * STATE_CONTINUE and will not modify the stack. */
-enum state_response state_stack_iterate ();
+enum state_response state_stack_iterate (double dt);
 
 /* Pass an event to be handled by the state stack. event is assumed to be a
  * pointer to an SDL_Event object, but the state stack does not need to know this.
