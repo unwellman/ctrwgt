@@ -41,6 +41,10 @@ struct state {
 	void (*del)(struct state *self);
 };
 
+/* Basic state which fails if it receives an event signal.
+ * To be defined in main.c */
+extern struct state *GROUND_STATE;
+
 /* Push a new state onto the stack and call ptr->init()
  * Note that the state will be popped without calling iterate() if it returns
  * STATE_RETURN. */
@@ -60,6 +64,11 @@ int state_stack_empty ();
  * If the bottom state run returns STATE_CONTINUE, then this function returns
  * STATE_CONTINUE and will not modify the stack. */
 enum state_response state_stack_iterate ();
+
+/* Pass an event to be handled by the state stack. event is assumed to be a
+ * pointer to an SDL_Event object, but the state stack does not need to know this.
+ * */
+enum state_response state_stack_event (void *event);
 
 /* Pop every element of the stack. */
 void state_stack_destroy ();

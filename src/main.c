@@ -2,28 +2,73 @@
 #define SDL_MAIN_USE_CALLBACKS
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
+#include <SDL3/SDL_log.h>
+
+#include "state.h"
+#include "log.h"
+#define LOGGING_DEV
 
 SDL_AppResult SDL_AppInit (void **app_state, int argc, char *argv[]) {
-	printf("Initialized!\n");
+#ifdef LOGGING_DEV
+	SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_TRACE);
+#endif
+	state_stack_push(GROUND_STATE);
 	return SDL_APP_CONTINUE;
 }
 
 SDL_AppResult SDL_AppIterate (void *app_state) {
-	printf("Hello world\n");
-	// Quit immediately
-	return SDL_APP_SUCCESS;
+	enum state_response result = state_stack_iterate();
+	if (state_stack_peek())
+		return SDL_APP_CONTINUE;
+	switch (result) {
+	case STATE_RETURN:
+		return SDL_APP_SUCCESS;
+	default:
+		return SDL_APP_FAILURE;
+	}
 }
 
 SDL_AppResult SDL_AppEvent (void *app_state, SDL_Event *event) {
-	return SDL_APP_CONTINUE;
+	enum state_response result = state_stack_event(event);
+	switch (result) {
+	case STATE_CONTINUE:
+		return SDL_APP_CONTINUE;
+	case STATE_RETURN:
+		return SDL_APP_SUCCESS;
+	default:
+		return SDL_APP_FAILURE;
+	}
 }
 
 void SDL_AppQuit (void *app_state, SDL_AppResult result) {
-	if (result == SDL_APP_SUCCESS)
-		printf("Successfully executed\n");
-	else if (result == SDL_APP_FAILURE)
-		printf("Failed to execute\n");
-	else
-		printf("Something strange went wrong: %d\n", result);
+	log_trace("Destroying state stack");
+	state_stack_destroy();
 }
+
+/* GROUND_STATE structures */
+static enum state_response ground_state_init (struct state *self) {
+	return STATE_CONTINUE;
+}
+static enum state_response ground_state_event (struct state *self,
+		void *event) {
+	if (((SDL_Event *) event)->type == SDL_EVENT_QUIT) {
+		return STATE_RETURN;
+	}
+	log_critical("Unhandled event");
+	return STATE_FAILURE;
+}
+static void ground_state_del (struct state *self) {
+	return;
+}
+
+static struct state ground_state = {
+	.name = "GROUND_STATE",
+	.data = NULL,
+	.init = ground_state_init,
+	.iterate = NULL,
+	.event = ground_state_event,
+	.del = ground_state_del
+};
+
+struct state *GROUND_STATE = &ground_state;
 

@@ -1,31 +1,59 @@
 #include "state.h"
 #include "log.h"
 
+/* Call STACK->del() and pop the state at the top of the stack */
+static void state_stack_pop ();
+
 /* If ptr is in the stack, pop every state up to and including ptr.
  * If ptr is not in the stack, do nothing. */
 static void pop_until (struct state *ptr);
 
-/* Pop the state at the top of the stack and call ptr->del() */
-static enum state_response state_stack_pop ();
-
 /* Top of the stack */
 static struct state *STACK = NULL;
 
-/* Stores the previous return value of state_stack_iterate */
-static enum state_response PREVIOUS = STATE_CONTINUE;
-
 enum state_response state_stack_iterate () {
-	enum state_response ret;
-	struct state *ptr = STACK;
-	do {
+	enum state_response ret = STATE_DEFER;
+	// This works because next is the first member of struct state
+	struct state *ptr = (struct state *) &STACK;
+	while (ret == STATE_DEFER) {
+		ptr = ptr->next; // On first loop, now ptr = STACK
 		if (!ptr) {
+			log_critical("Iteration fell through the state stack");
 			state_stack_destroy();
 			return STATE_FAILURE;
 		}
-		ret = ptr->iterate(ptr, PREVIOUS);
+		if (ptr->iterate)
+			ret = ptr->iterate(ptr, ret);
+	}
+	switch (ret) {
+	case STATE_RETURN:
+	case STATE_FAILURE:
+		pop_until(ptr);
+	default:
+		return ret;
+	}
+}
+
+enum state_response state_stack_event (void *event) {
+	enum state_response ret = STATE_DEFER;
+	struct state *ptr = (struct state*) &STACK;
+	while (ret == STATE_DEFER) {
 		ptr = ptr->next;
-	} while (ret == STATE_DEFER);
-	return ret;
+		if (!ptr) {
+			log_critical("Event fell through the state stack");
+			state_stack_destroy();
+			return STATE_FAILURE;
+		}
+		if (ptr->event)
+			ret = ptr->event(ptr, event);
+	}
+	switch (ret) {
+	case STATE_RETURN:
+	case STATE_FAILURE:
+		pop_until(ptr);
+	default:
+		return ret;
+	}
 }
 
 void state_stack_destroy () {
@@ -47,23 +75,18 @@ enum state_response state_stack_push (struct state *ptr) {
 	switch (ret) {
 	case STATE_CONTINUE:
 		return ret;
-	case STATE_RETURN:
-	case STATE_FAILURE:
-	case STATE_DEFER: // Disallowed
+	default:
 		state_stack_pop();
 		return ret;
 	}
 }
 
-static enum state_response state_stack_pop () {
+static void state_stack_pop () {
 	if (!STACK) // In principle, this should never happen
-		return STATE_FAILURE;
+		return;
 	if (STACK->del)
 		STACK->del(STACK);
 	STACK = STACK->next;
-	if (!STACK)
-		return STATE_RETURN;
-	return STATE_CONTINUE;
 }
 
 struct state * state_stack_peek () {

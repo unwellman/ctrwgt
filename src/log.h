@@ -6,9 +6,6 @@
  * Why this is necessary I do not know.
  * */
 
-#include <stdarg.h>
-#include <SDL3/SDL_log.h>
-
 void log_trace (const char *fmt, ...);
 void log_debug (const char *fmt, ...);
 void log_info (const char *fmt, ...);
