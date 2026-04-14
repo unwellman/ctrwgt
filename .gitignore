@@ -11,4 +11,5 @@ spec/*
 !spec/*.md
 !lib
 lib/*
+!lib/nanosvg.h
 

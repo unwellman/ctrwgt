@@ -1,7 +1,5 @@
 # Counterweight World Representation
 
-Brainstorm techniques for world design
-
 ## Geometry
 
 Being a space game with a rotatable camera, Counterweight will need to have
@@ -26,32 +24,30 @@ The intimidation factor of venturing outside the terminal workflow is
 significant, but in the interest of bringing in collaborators, this seems to be
 the way to go.
 
-### Text-based specification
+### File formats
 
-The approach in the Python m\_ake system was to use YAML to specify the positions
-of various collision primitives, e.g. circles, splines in a text-only format.
+World geometry assets will be specified in SVG.
 
-    - Tooling is easy to set up
-    - Lack of visual tools means:
-        - Slower iteration and feedback time
-        - Much less accessible workflow for collaborators
-    - YAML's tree-like maps lend themselves cleanly to the mathematical
-    properties of a scene graph
-    - Designing a system from the ground up means:
-        - High likelihood for design debt and breaking changes
 
-The biggest problem with this approach is that the specification for how data
-will be laid out is too large of a design project to undertake before even
-creating any assets. The design will inevitably undergo many breaking changes
-and ultimately outprice the initial ease of tooling.
+### Dependencies
 
-### The secret third option: tile geometry
+Parsing SVG world specifications will be done with
+[nanosvg](https://github.com/memononen/nanosvg),
+which turns every piece of geometry into a 3rd-degree Bézier curve.
+Because Counterweight's world geometry will rely on *very* large
+(tens to hundreds of thousands of pixels) circles,
+some modifications will need to be made to keep the approximation error not
+larger than 1 pixel.
 
-    - Ease of implementation, workflow, and collision handling
-    - Pixel art assets don't lend themselves to being stretched like this tile
-    system would demand
+Modifying the internal nanosvg function `nsvg__parseCircle` to reflect
+Bézier control points computed in
+[this](https://spencermortensen.com/articles/bezier-circle/)
+article will decrease the approximation error considerably without needing to
+change the strictly cubic Bézier approach. Further error reduction may need to
+be done on a case-by-case basis, including workarounds like chopping up massive
+circles into arcs smaller than 90°.
 
 
 
-## In-world actors
+
 
