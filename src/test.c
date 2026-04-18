@@ -1,14 +1,15 @@
 #include <stdio.h>
 #include <assert.h>
 #include <SDL3/SDL.h>
+#define NANOSVG_IMPLEMENTATION
+#include <nanosvg.h>
 
 #include "test.h"
 #include "log.h"
 
 int run_tests (struct test_batch batch) {
-	size_t count = batch.count;
 	struct test *tests = batch.ptr;
-	for (size_t i = 0; i < count; i++) {
+	for (size_t i = 0; i < batch.count; i++) {
 		struct test curr = tests[i];
 		printf("Running %zu %s\n", i, curr.name);
 		int result = curr.func();

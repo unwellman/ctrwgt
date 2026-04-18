@@ -1,4 +1,17 @@
 /*
+ * This is a modified version of NanoSVG, originally written by Mikko Mononen
+ * and distributed under the terms of the ZLIB license, retrieved from GitHub
+ * (https://github.com/memononen/nanosvg/blob/master/src/nanosvg.h).
+ * Modifications are also subject to the terms of the ZLIB license.
+ *
+ * Summary of changes:
+ * 	(Planned) change circle and ellipse functions to use a Bézier
+ * 	approximation with less deviation from a perfect circle
+ *
+ * 	Change nested struct->union declarations to comply with C99
+ * 	(and corresponding implementation changes)
+ *
+ *
  * Copyright (c) 2013-14 Mikko Mononen memon@inside.org
  *
  * This software is provided 'as-is', without any express or implied
@@ -130,7 +143,7 @@ typedef struct NSVGpaint {
 	union {
 		unsigned int color;
 		NSVGgradient* gradient;
-	};
+	} CTRWcolorGradient;
 } NSVGpaint;
 
 typedef struct NSVGpath
@@ -200,6 +213,9 @@ void nsvgDelete(NSVGimage* image);
 #include <math.h>
 
 #define NSVG_PI (3.14159265358979323846264338327f)
+/*
+ * CTRW: This constant will be updated for a closer circle approximation
+ * */
 #define NSVG_KAPPA90 (0.5522847493f)	// Length proportional to radius of a cubic bezier handle for 90deg arcs.
 
 #define NSVG_ALIGN_MIN 0
@@ -409,7 +425,7 @@ typedef struct NSVGgradientData
 	union {
 		NSVGlinearData linear;
 		NSVGradialData radial;
-	};
+	} CTRWlinearRadial;
 	char spread;
 	char units;
 	float xform[6];
@@ -679,7 +695,7 @@ static void nsvg__deletePaths(NSVGpath* path)
 static void nsvg__deletePaint(NSVGpaint* paint)
 {
 	if (paint->type == NSVG_PAINT_LINEAR_GRADIENT || paint->type == NSVG_PAINT_RADIAL_GRADIENT)
-		free(paint->gradient);
+		free(paint->CTRWcolorGradient.gradient);
 }
 
 static void nsvg__deleteGradientData(NSVGgradientData* grad)
@@ -881,10 +897,10 @@ static NSVGgradient* nsvg__createGradient(NSVGparser* p, const char* id, const f
 
 	if (data->type == NSVG_PAINT_LINEAR_GRADIENT) {
 		float x1, y1, x2, y2, dx, dy;
-		x1 = nsvg__convertToPixels(p, data->linear.x1, ox, sw);
-		y1 = nsvg__convertToPixels(p, data->linear.y1, oy, sh);
-		x2 = nsvg__convertToPixels(p, data->linear.x2, ox, sw);
-		y2 = nsvg__convertToPixels(p, data->linear.y2, oy, sh);
+		x1 = nsvg__convertToPixels(p, data->CTRWlinearRadial.linear.x1, ox, sw);
+		y1 = nsvg__convertToPixels(p, data->CTRWlinearRadial.linear.y1, oy, sh);
+		x2 = nsvg__convertToPixels(p, data->CTRWlinearRadial.linear.x2, ox, sw);
+		y2 = nsvg__convertToPixels(p, data->CTRWlinearRadial.linear.y2, oy, sh);
 		// Calculate transform aligned to the line
 		dx = x2 - x1;
 		dy = y2 - y1;
@@ -893,11 +909,11 @@ static NSVGgradient* nsvg__createGradient(NSVGparser* p, const char* id, const f
 		grad->xform[4] = x1; grad->xform[5] = y1;
 	} else {
 		float cx, cy, fx, fy, r;
-		cx = nsvg__convertToPixels(p, data->radial.cx, ox, sw);
-		cy = nsvg__convertToPixels(p, data->radial.cy, oy, sh);
-		fx = nsvg__convertToPixels(p, data->radial.fx, ox, sw);
-		fy = nsvg__convertToPixels(p, data->radial.fy, oy, sh);
-		r = nsvg__convertToPixels(p, data->radial.r, 0, sl);
+		cx = nsvg__convertToPixels(p, data->CTRWlinearRadial.radial.cx, ox, sw);
+		cy = nsvg__convertToPixels(p, data->CTRWlinearRadial.radial.cy, oy, sh);
+		fx = nsvg__convertToPixels(p, data->CTRWlinearRadial.radial.fx, ox, sw);
+		fy = nsvg__convertToPixels(p, data->CTRWlinearRadial.radial.fy, oy, sh);
+		r = nsvg__convertToPixels(p, data->CTRWlinearRadial.radial.r, 0, sl);
 		// Calculate transform aligned to the circle
 		grad->xform[0] = r; grad->xform[1] = 0;
 		grad->xform[2] = 0; grad->xform[3] = r;
@@ -1007,8 +1023,8 @@ static void nsvg__addShape(NSVGparser* p)
 		shape->fill.type = NSVG_PAINT_NONE;
 	} else if (attr->hasFill == 1) {
 		shape->fill.type = NSVG_PAINT_COLOR;
-		shape->fill.color = attr->fillColor;
-		shape->fill.color |= (unsigned int)(attr->fillOpacity*255) << 24;
+		shape->fill.CTRWcolorGradient.color = attr->fillColor;
+		shape->fill.CTRWcolorGradient.color |= (unsigned int)(attr->fillOpacity*255) << 24;
 	} else if (attr->hasFill == 2) {
 		shape->fill.type = NSVG_PAINT_UNDEF;
 	}
@@ -1018,8 +1034,8 @@ static void nsvg__addShape(NSVGparser* p)
 		shape->stroke.type = NSVG_PAINT_NONE;
 	} else if (attr->hasStroke == 1) {
 		shape->stroke.type = NSVG_PAINT_COLOR;
-		shape->stroke.color = attr->strokeColor;
-		shape->stroke.color |= (unsigned int)(attr->strokeOpacity*255) << 24;
+		shape->stroke.CTRWcolorGradient.color = attr->strokeColor;
+		shape->stroke.CTRWcolorGradient.color |= (unsigned int)(attr->strokeOpacity*255) << 24;
 	} else if (attr->hasStroke == 2) {
 		shape->stroke.type = NSVG_PAINT_UNDEF;
 	}
@@ -2165,6 +2181,9 @@ static float nsvg__vecang(float ux, float uy, float vx, float vy)
 	return ((ux*vy < uy*vx) ? -1.0f : 1.0f) * acosf(r);
 }
 
+/*
+ * CTRW: This function needs to be changed to accommodate a more precise circle approximation
+ * */
 static void nsvg__pathArcTo(NSVGparser* p, float* cpx, float* cpy, float* args, int rel)
 {
 	// Ported from canvg (https://code.google.com/p/canvg/)
@@ -2489,6 +2508,9 @@ static void nsvg__parseRect(NSVGparser* p, const char** attr)
 	}
 }
 
+/*
+ * CTRW: This function needs to be changed to accommodate a more precise circle approximation
+ * */
 static void nsvg__parseCircle(NSVGparser* p, const char** attr)
 {
 	float cx = 0.0f;
@@ -2519,6 +2541,9 @@ static void nsvg__parseCircle(NSVGparser* p, const char** attr)
 	}
 }
 
+/*
+ * CTRW: This function needs to be changed to accommodate a more precise circle approximation
+ * */
 static void nsvg__parseEllipse(NSVGparser* p, const char** attr)
 {
 	float cx = 0.0f;
@@ -2679,14 +2704,14 @@ static void nsvg__parseGradient(NSVGparser* p, const char** attr, signed char ty
 	grad->units = NSVG_OBJECT_SPACE;
 	grad->type = type;
 	if (grad->type == NSVG_PAINT_LINEAR_GRADIENT) {
-		grad->linear.x1 = nsvg__coord(0.0f, NSVG_UNITS_PERCENT);
-		grad->linear.y1 = nsvg__coord(0.0f, NSVG_UNITS_PERCENT);
-		grad->linear.x2 = nsvg__coord(100.0f, NSVG_UNITS_PERCENT);
-		grad->linear.y2 = nsvg__coord(0.0f, NSVG_UNITS_PERCENT);
+		grad->CTRWlinearRadial.linear.x1 = nsvg__coord(0.0f, NSVG_UNITS_PERCENT);
+		grad->CTRWlinearRadial.linear.y1 = nsvg__coord(0.0f, NSVG_UNITS_PERCENT);
+		grad->CTRWlinearRadial.linear.x2 = nsvg__coord(100.0f, NSVG_UNITS_PERCENT);
+		grad->CTRWlinearRadial.linear.y2 = nsvg__coord(0.0f, NSVG_UNITS_PERCENT);
 	} else if (grad->type == NSVG_PAINT_RADIAL_GRADIENT) {
-		grad->radial.cx = nsvg__coord(50.0f, NSVG_UNITS_PERCENT);
-		grad->radial.cy = nsvg__coord(50.0f, NSVG_UNITS_PERCENT);
-		grad->radial.r = nsvg__coord(50.0f, NSVG_UNITS_PERCENT);
+		grad->CTRWlinearRadial.radial.cx = nsvg__coord(50.0f, NSVG_UNITS_PERCENT);
+		grad->CTRWlinearRadial.radial.cy = nsvg__coord(50.0f, NSVG_UNITS_PERCENT);
+		grad->CTRWlinearRadial.radial.r = nsvg__coord(50.0f, NSVG_UNITS_PERCENT);
 	}
 
 	nsvg__xformIdentity(grad->xform);
@@ -2704,23 +2729,23 @@ static void nsvg__parseGradient(NSVGparser* p, const char** attr, signed char ty
 			} else if (strcmp(attr[i], "gradientTransform") == 0) {
 				nsvg__parseTransform(grad->xform, attr[i + 1]);
 			} else if (strcmp(attr[i], "cx") == 0) {
-				grad->radial.cx = nsvg__parseCoordinateRaw(attr[i + 1]);
+				grad->CTRWlinearRadial.radial.cx = nsvg__parseCoordinateRaw(attr[i + 1]);
 			} else if (strcmp(attr[i], "cy") == 0) {
-				grad->radial.cy = nsvg__parseCoordinateRaw(attr[i + 1]);
+				grad->CTRWlinearRadial.radial.cy = nsvg__parseCoordinateRaw(attr[i + 1]);
 			} else if (strcmp(attr[i], "r") == 0) {
-				grad->radial.r = nsvg__parseCoordinateRaw(attr[i + 1]);
+				grad->CTRWlinearRadial.radial.r = nsvg__parseCoordinateRaw(attr[i + 1]);
 			} else if (strcmp(attr[i], "fx") == 0) {
-				grad->radial.fx = nsvg__parseCoordinateRaw(attr[i + 1]);
+				grad->CTRWlinearRadial.radial.fx = nsvg__parseCoordinateRaw(attr[i + 1]);
 			} else if (strcmp(attr[i], "fy") == 0) {
-				grad->radial.fy = nsvg__parseCoordinateRaw(attr[i + 1]);
+				grad->CTRWlinearRadial.radial.fy = nsvg__parseCoordinateRaw(attr[i + 1]);
 			} else if (strcmp(attr[i], "x1") == 0) {
-				grad->linear.x1 = nsvg__parseCoordinateRaw(attr[i + 1]);
+				grad->CTRWlinearRadial.linear.x1 = nsvg__parseCoordinateRaw(attr[i + 1]);
 			} else if (strcmp(attr[i], "y1") == 0) {
-				grad->linear.y1 = nsvg__parseCoordinateRaw(attr[i + 1]);
+				grad->CTRWlinearRadial.linear.y1 = nsvg__parseCoordinateRaw(attr[i + 1]);
 			} else if (strcmp(attr[i], "x2") == 0) {
-				grad->linear.x2 = nsvg__parseCoordinateRaw(attr[i + 1]);
+				grad->CTRWlinearRadial.linear.x2 = nsvg__parseCoordinateRaw(attr[i + 1]);
 			} else if (strcmp(attr[i], "y2") == 0) {
-				grad->linear.y2 = nsvg__parseCoordinateRaw(attr[i + 1]);
+				grad->CTRWlinearRadial.linear.y2 = nsvg__parseCoordinateRaw(attr[i + 1]);
 			} else if (strcmp(attr[i], "spreadMethod") == 0) {
 				if (strcmp(attr[i+1], "pad") == 0)
 					grad->spread = NSVG_SPREAD_PAD;
@@ -2978,14 +3003,14 @@ static void nsvg__scaleToViewbox(NSVGparser* p, const char* units)
 		}
 
 		if (shape->fill.type == NSVG_PAINT_LINEAR_GRADIENT || shape->fill.type == NSVG_PAINT_RADIAL_GRADIENT) {
-			nsvg__scaleGradient(shape->fill.gradient, tx,ty, sx,sy);
-			memcpy(t, shape->fill.gradient->xform, sizeof(float)*6);
-			nsvg__xformInverse(shape->fill.gradient->xform, t);
+			nsvg__scaleGradient(shape->fill.CTRWcolorGradient.gradient, tx,ty, sx,sy);
+			memcpy(t, shape->fill.CTRWcolorGradient.gradient->xform, sizeof(float)*6);
+			nsvg__xformInverse(shape->fill.CTRWcolorGradient.gradient->xform, t);
 		}
 		if (shape->stroke.type == NSVG_PAINT_LINEAR_GRADIENT || shape->stroke.type == NSVG_PAINT_RADIAL_GRADIENT) {
-			nsvg__scaleGradient(shape->stroke.gradient, tx,ty, sx,sy);
-			memcpy(t, shape->stroke.gradient->xform, sizeof(float)*6);
-			nsvg__xformInverse(shape->stroke.gradient->xform, t);
+			nsvg__scaleGradient(shape->stroke.CTRWcolorGradient.gradient, tx,ty, sx,sy);
+			memcpy(t, shape->stroke.CTRWcolorGradient.gradient->xform, sizeof(float)*6);
+			nsvg__xformInverse(shape->stroke.CTRWcolorGradient.gradient->xform, t);
 		}
 
 		shape->strokeWidth *= avgs;
@@ -3005,7 +3030,7 @@ static void nsvg__createGradients(NSVGparser* p)
 				float inv[6], localBounds[4];
 				nsvg__xformInverse(inv, shape->xform);
 				nsvg__getLocalBounds(localBounds, shape, inv);
-				shape->fill.gradient = nsvg__createGradient(p, shape->fillGradient, localBounds, shape->xform, &shape->fill.type);
+				shape->fill.CTRWcolorGradient.gradient = nsvg__createGradient(p, shape->fillGradient, localBounds, shape->xform, &shape->fill.type);
 			}
 			if (shape->fill.type == NSVG_PAINT_UNDEF) {
 				shape->fill.type = NSVG_PAINT_NONE;
@@ -3016,7 +3041,7 @@ static void nsvg__createGradients(NSVGparser* p)
 				float inv[6], localBounds[4];
 				nsvg__xformInverse(inv, shape->xform);
 				nsvg__getLocalBounds(localBounds, shape, inv);
-				shape->stroke.gradient = nsvg__createGradient(p, shape->strokeGradient, localBounds, shape->xform, &shape->stroke.type);
+				shape->stroke.CTRWcolorGradient.gradient = nsvg__createGradient(p, shape->strokeGradient, localBounds, shape->xform, &shape->stroke.type);
 			}
 			if (shape->stroke.type == NSVG_PAINT_UNDEF) {
 				shape->stroke.type = NSVG_PAINT_NONE;
