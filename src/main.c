@@ -7,15 +7,19 @@
 
 #include "state.h"
 #include "log.h"
+
+#include "sprite.h"
 #define LOGGING_DEV
 
 static Uint64 NS_ELAPSED;
+
 SDL_AppResult SDL_AppInit (void **app_state, int argc, char *argv[]) {
 	NS_ELAPSED = SDL_GetTicksNS();
 #ifdef LOGGING_DEV
 	SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_TRACE);
 #endif
 	state_stack_push(GROUND_STATE);
+	state_stack_push(&sprite_artist);
 	return SDL_APP_CONTINUE;
 }
 

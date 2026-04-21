@@ -10,7 +10,7 @@ LDFLAGS = -lm
 	#LDFLAGS += -framework IOKit -framework -CoreVideo -framework Cocoa
 #endif
 
-SRC = src/actor.c src/world.c src/state.c src/log.c
+SRC = src/actor.c src/world.c src/state.c src/log.c src/sprite.c
 # Every source file %.c must have a test test_%.c
 TEST_SRC = $(SRC) $(patsubst src/%,src/test_%,$(SRC))
 

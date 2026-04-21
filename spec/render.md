@@ -4,4 +4,5 @@ Initial goal: basic interface for a 2-D renderer
 
 Medium-term goal: refined design and hardware renderer
     - Make final breaking changes to renderer interface
-    - Implement renderer using OpenGL
+    - Implement renderer using SDL\_GPU
+
