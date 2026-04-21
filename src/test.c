@@ -3,6 +3,7 @@
 #include <SDL3/SDL.h>
 #define NANOSVG_IMPLEMENTATION
 #include <nanosvg.h>
+#include <tomlc17.h>
 
 #include "test.h"
 #include "log.h"

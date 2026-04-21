@@ -13,10 +13,10 @@ LDFLAGS = -lm
 SRC = src/actor.c src/world.c src/state.c src/log.c
 # Every source file %.c must have a test test_%.c
 TEST_SRC = $(SRC) $(patsubst src/%,src/test_%,$(SRC))
-
+#
 # main and test both contain an entry point,
 #  so they should not be linked together
-OBJ = src/main.o $(patsubst %.c,%.o,$(SRC))
+OBJ = src/main.o lib/tomlc17.o $(patsubst %.c,%.o,$(SRC))
 TEST_OBJ = src/test.o $(patsubst %.c,%.o,$(TEST_SRC))
 
 LIB = lib

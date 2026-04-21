@@ -43,7 +43,6 @@ void coord_world_tile (double *dst_x, double *dst_y, size_t i, size_t j) {
 	*dst_y = (double) i * sin(angle);
 }
 
-#include <stdio.h>
 void nearest_tile (size_t *dst_i, size_t *dst_j, double x, double y) {
 	size_t i = ceil(sqrt(x*x + y*y));
 	double subdivision = 2*PI / (double) ring_subdivisions(i);

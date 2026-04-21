@@ -12,4 +12,6 @@ spec/*
 !lib
 lib/*
 !lib/nanosvg.h
+!lib/tomlc17.h
+!lib/tomlc17.c
 
