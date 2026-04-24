@@ -110,7 +110,7 @@ struct renderer_create_info RENDERER_DEFAULTS = {
 
 int render_init (SDL_Renderer **dst, struct renderer_create_info *info) {
 	render_state = *info;
-	window = SDL_CreateWindow(info->title, info->window_h, info->window_w,
+	window = SDL_CreateWindow(info->title, info->window_w, info->window_h,
 			SDL_WINDOW_RESIZABLE);
 	if (!window) {
 		log_critical("Window creation failed: %s", SDL_GetError());
@@ -170,6 +170,13 @@ int render_present (void) {
 	return 0;
 }
 
+static SDL_FRect layer_rect (Uint32 layer) {
+	SDL_FPoint upper_left = geometry[4*layer + 3].tex_coord;
+	float w = (float) render_state.logical_w;
+	float h = (float) render_state.logical_h;
+	return (SDL_FRect) {w*upper_left.x, h*upper_left.y, w/4, h/4};
+}
+
 SDL_FRect render_get_layer (SDL_Renderer **ren_dst, SDL_Texture **tex_dst,
 		Uint32 layer) {
 	if (!(0 <= layer && layer < 16))
@@ -178,9 +185,19 @@ SDL_FRect render_get_layer (SDL_Renderer **ren_dst, SDL_Texture **tex_dst,
 		*ren_dst = renderer;
 	if (tex_dst)
 		*tex_dst = screen;
-	SDL_FPoint upper_left = geometry[4*layer + 3].tex_coord;
-	float w = (float) render_state.logical_w;
-	float h = (float) render_state.logical_h;
-	return (SDL_FRect) {w*upper_left.x, h*upper_left.y, w/4, h/4};
-
+	return layer_rect(layer);
 }
+
+SDL_Renderer * render_set_layer (Uint32 layer) {
+	if (!(0 <= layer && layer < 16)) // Not permissible
+		return NULL;
+	SDL_FRect rect = layer_rect(layer);
+	SDL_Rect viewport = {
+		.x = (int) rect.x, .y = (int) rect.y,
+		.w = (int) rect.y, .h = (int) rect.h
+	};
+	if(!SDL_SetRenderViewport(renderer, &viewport))
+		log_error("Viewport change failed: %s", SDL_GetError());
+	return renderer;
+}
+

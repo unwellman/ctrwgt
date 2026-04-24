@@ -60,25 +60,18 @@ void SDL_AppQuit (void *app_state, SDL_AppResult result) {
 }
 
 /* GROUND_STATE structures */
-static struct {
-	SDL_Renderer *renderer;
-	SDL_Texture *screen;
-	SDL_FRect layer;
-} ground_state_basics = {0};
-static enum state_response ground_state_init (struct state *self) {
-	int res = render_init(NULL, &RENDERER_DEFAULTS);
-	if (res)
-		return STATE_FAILURE;
-	ground_state_basics.layer = render_get_layer(
-			&(ground_state_basics.renderer),
-			&(ground_state_basics.screen), 15);
-	return STATE_CONTINUE;
-}
-
 static double ground_state_time_elapsed = 0;
 static Uint64 ground_state_second_counter = 0;
 static Uint64 frame_counter = 0;
 static double measured_frame_rate = 0;
+
+static enum state_response ground_state_init (struct state *self) {
+	int res = render_init(NULL, &RENDERER_DEFAULTS);
+	if (res)
+		return STATE_FAILURE;
+	return STATE_CONTINUE;
+}
+
 static enum state_response ground_state_iterate (struct state *self,
 		enum state_response prev, double dt) {
 	// Keep track of time
@@ -91,11 +84,14 @@ static enum state_response ground_state_iterate (struct state *self,
 	}
 
 	// Draw some debug text
-	SDL_SetRenderDrawColor(ground_state_basics.renderer,
-			255, 255, 255, SDL_ALPHA_OPAQUE);
-	SDL_RenderDebugTextFormat(ground_state_basics.renderer,
-			ground_state_basics.layer.x, ground_state_basics.layer.y,
-			"%.0f FPS", measured_frame_rate);
+	SDL_Renderer *renderer = render_set_layer(15);
+	if (!renderer) {
+		log_critical("Render layer out of range");
+		return STATE_FAILURE;
+	}
+	SDL_SetRenderDrawColor(renderer, 255, 255, 255, SDL_ALPHA_OPAQUE);
+	SDL_RenderDebugTextFormat(renderer, 0.0, 0.0, "%.0f FPS",
+			measured_frame_rate);
 
 	render_present();
 	return STATE_CONTINUE;

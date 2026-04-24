@@ -20,13 +20,12 @@ int render_init (SDL_Renderer **dst, struct renderer_create_info *info);
 
 void render_dest (void);
 
-/* Write the main screen texture to dst and return the FRect bounding the
- * requested layer. dst is ignored if NULL.
+/* Change the renderer's viewport to draw on the given layer, returning
+ * a pointer to the renderer.
  *
  * Currently hard-coded to 16 layers.
  * */
-SDL_FRect render_get_layer (SDL_Renderer **ren_dst, SDL_Texture **tex_dst,
-		Uint32 layer);
+SDL_Renderer * render_set_layer (Uint32 layer);
 
 int render_present (void);
 
