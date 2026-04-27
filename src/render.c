@@ -1,6 +1,22 @@
 #include "render.h"
 #include "log.h"
 
+
+static SDL_Window *window = NULL;
+static SDL_Renderer *renderer = NULL;
+static SDL_Texture *screen = NULL;
+static struct renderer_create_info render_state = {0};
+
+char WINDOW_TITLE[] = "Counterweight";
+struct renderer_create_info RENDERER_DEFAULTS = {
+	.window_w = 1920,
+	.window_h = 1080,
+	.logical_w = 1920,
+	.logical_h = 1080,
+	.layers = 16,
+	.title = WINDOW_TITLE
+};
+
 /* Explicit triangle geometry for 16 screen layers tiled across
  * a 1920x1080 texture
  * {.position = {x, y}, .color = {r, g, b, a}, .tex_coord = {x, y}}
@@ -91,21 +107,6 @@ static int indices[NUM_INDICES] = {
 	52, 53, 54, 52, 54, 55, // Layer 13
 	56, 57, 58, 56, 58, 59, // Layer 14
 	60, 61, 62, 60, 62, 63 // Layer 15
-};
-
-static SDL_Window *window = NULL;
-static SDL_Renderer *renderer = NULL;
-static SDL_Texture *screen = NULL;
-static struct renderer_create_info render_state = {0};
-
-char WINDOW_TITLE[] = "Counterweight";
-struct renderer_create_info RENDERER_DEFAULTS = {
-	.window_w = 1920,
-	.window_h = 1080,
-	.logical_w = 1920,
-	.logical_h = 1080,
-	.layers = 16,
-	.title = WINDOW_TITLE
 };
 
 int render_init (SDL_Renderer **dst, struct renderer_create_info *info) {
