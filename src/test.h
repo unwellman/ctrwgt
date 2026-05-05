@@ -33,6 +33,7 @@ extern struct test_batch actor_tests;
 extern struct test_batch world_tests;
 extern struct test_batch log_tests;
 extern struct test_batch state_tests;
+extern struct test_batch geometry_tests;
 
 // Good enough for government work
 #define is_close(a,b) ( ((a) - (b))*((a) - (b)) <= DBL_EPSILON )

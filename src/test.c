@@ -25,6 +25,7 @@ int main () {
 	assert(!run_tests(world_tests));
 	assert(!run_tests(log_tests));
 	assert(!run_tests(state_tests));
+	assert(!run_tests(geometry_tests));
 	printf("All tests passing\n\n");
 	return 0;
 }
