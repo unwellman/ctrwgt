@@ -20,7 +20,7 @@ int run_tests (struct test_batch batch) {
 	return 0;
 }
 
-int main () {
+int main (void) {
 	assert(!run_tests(actor_tests));
 	assert(!run_tests(world_tests));
 	assert(!run_tests(log_tests));

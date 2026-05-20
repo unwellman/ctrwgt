@@ -25,8 +25,8 @@ EXEC = ctrwgt
 TEST = tests
 
 # Need a better way to do this---maybe install SDL to ~
-CFLAGS += -I/usr/local/Cellar/sdl3/3.4.2/include -Ilib
-LDFLAGS += -F$(HOME)/SDL
+CFLAGS += -I$(HOME)/SDL/include -Ilib
+LDFLAGS += -F$(HOME)/SDL/build -F$(HOME)/SDL
 LDFLAGS += -framework SDL3
 #LDFLAGS += -framework CoreAudio -framework CoreVideo
 #LDFLAGS += -framework Cocoa -framework Metal -framework IOKit

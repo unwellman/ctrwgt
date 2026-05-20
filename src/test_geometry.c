@@ -36,7 +36,7 @@ static struct polygon poly = {
 	.npts = 7,
 	.closed = 1
 };
-static int test_dcel_init () {
+static int test_dcel_init (void) {
 	struct dcel *obj = dcel_init_polygon(&poly);
 	size_t euler = dcel_euler_char(obj);
 	if (euler != 2) {

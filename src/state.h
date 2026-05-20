@@ -53,10 +53,10 @@ extern struct state *GROUND_STATE;
 enum state_response state_stack_push (struct state *ptr);
 
 /* Return a pointer to the state on top of the stack without changing the stack */
-struct state * state_stack_peek ();
+struct state * state_stack_peek (void);
 
 /* Check if the state stack is empty and return 1 if empty, 0 if not */
-int state_stack_empty ();
+int state_stack_empty (void);
 
 /* Run the iterate method of the state at the top of the stack.
  * Continue down the stack running state.iterate() until a state returns something
@@ -73,7 +73,7 @@ enum state_response state_stack_iterate (double dt);
 enum state_response state_stack_event (void *event);
 
 /* Pop every element of the stack. */
-void state_stack_destroy ();
+void state_stack_destroy (void);
 
 #endif
 
