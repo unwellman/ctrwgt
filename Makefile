@@ -1,42 +1,32 @@
 SHELL = /bin/sh
 
-CFLAGS = -std=c99 -Wall -Wextra -Wpedantic -Wstrict-aliasing -Werror
-CFLAGS += -Wno-empty-translation-unit -Wno-unused-parameter -Wno-unused-function
-
-LDFLAGS = -lm
-
-# Assuming required frameworks for MacOS
-#ifeq ($(UNAME_S), Darwin)
-	#LDFLAGS += -framework IOKit -framework -CoreVideo -framework Cocoa
-#endif
-
-SRC = src/actor.c src/world.c src/state.c src/log.c src/render.c src/geometry.c
-# Every source file %.c must have a test test_%.c
-TEST_SRC = $(SRC) $(patsubst src/%,src/test_%,$(SRC))
-#
-# main and test both contain an entry point,
-#  so they should not be linked together
-OBJ = src/main.o lib/tomlc17.o $(patsubst %.c,%.o,$(SRC))
-TEST_OBJ = src/test.o $(patsubst %.c,%.o,$(TEST_SRC))
-
 LIB = lib
 BIN = bin
 EXEC = ctrwgt
 TEST = tests
 
+SRC = src/actor.c src/world.c src/state.c src/log.c src/render.c src/geometry.c
+# Every source file %.c must have a test test_%.c
+TEST_SRC = $(SRC) $(patsubst src/%,src/test_%,$(SRC))
+
+# main and test both contain an entry point,
+# so they should not be linked together
+OBJ = src/main.o lib/tomlc17.o $(patsubst %.c,%.o,$(SRC))
+TEST_OBJ = src/test.o $(patsubst %.c,%.o,$(TEST_SRC))
+
 # Need a better way to do this---maybe install SDL to ~
+CFLAGS = -std=c99 -Wall -Wextra -Wpedantic -Wstrict-aliasing -Werror
+CFLAGS += -Wno-empty-translation-unit -Wno-unused-parameter -Wno-unused-function
 CFLAGS += -I$(HOME)/SDL/include -Ilib
-LDFLAGS += -F$(HOME)/SDL/build -F$(HOME)/SDL
+
+LDFLAGS = -lm
+LDFLAGS += -F/Library/Frameworks -rpath /Library/Frameworks
 LDFLAGS += -framework SDL3
-#LDFLAGS += -framework CoreAudio -framework CoreVideo
-#LDFLAGS += -framework Cocoa -framework Metal -framework IOKit
-#LDFLAGS += -framework AudioToolbox -framework ForceFeedback
-#LDFLAGS += -framework CoreHaptics
 
 .PHONY : run tests clean
 .SILENT : clean
 
-# Default
+# Default target
 $(BIN)/$(EXEC) : $(BIN) $(OBJ) tests src/main.o
 	$(CC) $(OBJ) $(LDFLAGS) -o ./$(BIN)/$(EXEC)
 
