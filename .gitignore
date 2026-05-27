@@ -2,16 +2,24 @@
 !LICENSE.txt
 !.gitignore
 !Makefile
+!Info.plist
+
 !src
 src/*
 !src/*.h
 !src/*.c
+
 !spec
 spec/*
 !spec/*.md
+
 !lib
 lib/*
 !lib/nanosvg.h
 !lib/tomlc17.h
 !lib/tomlc17.c
+
+!res
+res/*
+!res/ctrwgt.png
 

@@ -20,7 +20,7 @@ SDL_AppResult SDL_AppInit (void **app_state, int argc, char *argv[]) {
 
 	if (!SDL_Init(SDL_INIT_VIDEO)) {
 		log_critical("SDL init failed: %s", SDL_GetError());
-		return -1;
+		return SDL_APP_FAILURE;
 	}
 
 	state_stack_push(GROUND_STATE);
