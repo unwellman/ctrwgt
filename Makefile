@@ -4,24 +4,33 @@ LIB = lib
 BIN = bin
 EXEC = ctrwgt
 TEST = tests
+# MacOS
+FRAMEWORK_PATH = /Library/Frameworks
+SDL_FRAMEWORK = SDL3.framework
 
 SRC = src/actor.c src/world.c src/state.c src/log.c src/render.c src/geometry.c
-# Every source file %.c must have a test test_%.c
+# Every source file *.c must have an associated test at test_*.c
+# This doesn't enforce whether the tests actually *do* anything, but unit testing
+# requires discipline anyway
 TEST_SRC = $(SRC) $(patsubst src/%,src/test_%,$(SRC))
 
-# main and test both contain an entry point,
-# so they should not be linked together
+# main and test are both entry points, so instead of juggling environment
+# variables, we just avoid linking them together
 OBJ = src/main.o lib/tomlc17.o $(patsubst %.c,%.o,$(SRC))
 TEST_OBJ = src/test.o $(patsubst %.c,%.o,$(TEST_SRC))
 
-# Need a better way to do this---maybe install SDL to ~
 CFLAGS = -std=c99 -Wall -Wextra -Wpedantic -Wstrict-aliasing -Werror
 CFLAGS += -Wno-empty-translation-unit -Wno-unused-parameter -Wno-unused-function
-CFLAGS += -I$(HOME)/SDL/include -Ilib
+CFLAGS += -Ilib
+CFLAGS += -O3
 
 LDFLAGS = -lm
-LDFLAGS += -F/Library/Frameworks -rpath /Library/Frameworks
+
+# MacOS
+CFLAGS += -I$(HOME)/SDL/include
+LDFLAGS += -F$(FRAMEWORK_PATH)
 LDFLAGS += -framework SDL3
+LDFLAGS += -headerpad_max_install_names
 
 .PHONY : run tests clean
 .SILENT : clean
@@ -32,6 +41,8 @@ $(BIN)/$(EXEC) : $(BIN) $(OBJ) tests src/main.o
 
 $(BIN)/$(TEST) : $(BIN) $(TEST_OBJ) #$(LIB)/DUMMY_SDL
 	$(CC) $(TEST_OBJ) $(LDFLAGS) -o ./$(BIN)/tests
+	# MacOS
+	install_name_tool -add_rpath $(FRAMEWORK_PATH) ./$(BIN)/tests
 
 tests : $(BIN)/$(TEST)
 	./$(BIN)/$(TEST)
@@ -39,12 +50,20 @@ tests : $(BIN)/$(TEST)
 run : $(BIN)/$(EXEC)
 	./$(BIN)/$(EXEC)
 
+# MacOS
 ctrwgt.app : $(BIN)/$(EXEC) Info.plist res/ctrwgt.icns
+	# Surely this is OK to hardcode?
 	mkdir -p ctrwgt.app ctrwgt.app/Contents ctrwgt.app/Contents/MacOS \
-		ctrwgt.app/Contents/Resources
+		ctrwgt.app/Contents/Resources ctrwgt.app/Contents/Frameworks
 	mv $(BIN)/$(EXEC) ctrwgt.app/Contents/MacOS
 	cp Info.plist ctrwgt.app/Contents
 	cp -R res/* ctrwgt.app/Contents/Resources
+	# Development
+	ln -shf $(FRAMEWORK_PATH)/$(SDL_FRAMEWORK) \
+		ctrwgt.app/Contents/Frameworks/$(SDL_FRAMEWORK)
+	# For distribution, fully copy the framework
+	install_name_tool -add_rpath @executable_path/../Frameworks \
+		ctrwgt.app/Contents/MacOS/$(EXEC)
 
 # Script taken from StackOverflow.
 # Source - https://stackoverflow.com/a/20703594
