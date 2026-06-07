@@ -1,96 +1,107 @@
 #include "render.h"
 #include "log.h"
 
+#define SCREEN_LAYER_MAX_SCALE 32
 
-static SDL_Window *window = NULL;
-static SDL_Renderer *renderer = NULL;
-static SDL_Texture *screen = NULL;
-static struct renderer_create_info render_state = {0};
+struct render_state {
+	SDL_Window *window;
+	SDL_Renderer *renderer;
+	SDL_Texture *screen;
+	int w, h;
+};
+static struct render_state RENDER_STATE;
 
 char WINDOW_TITLE[] = "Counterweight";
-struct renderer_create_info RENDERER_DEFAULTS = {
-	.window_w = 1920,
-	.window_h = 1080,
-	.logical_w = 1920,
-	.logical_h = 1080,
-	.layers = 16,
-	.title = WINDOW_TITLE
+char DISPLAY_NAME[] = "Built-in Retina Display";
+struct window_create_info WINDOW_DEFAULTS = {
+	.title = WINDOW_TITLE,
+	.display_name = DISPLAY_NAME,
+	.fullscreen = false,
+	.maximized = false,
+	.resizable = true,
+	.hidden = true,
+	.target_width = 480,
+	.target_height = 270,
+	.max_width = 640,
+	.max_height = 360
 };
 
-/* Explicit triangle geometry for 16 screen layers tiled across
- * a 1920x1080 texture
+/* Explicit triangle geometry for 16 screen layers tiled across a texture.
  * {.position = {x, y}, .color = {r, g, b, a}, .tex_coord = {x, y}}
+ * Positions will be loaded at runtime as necessary.
 */
-#define NUM_VERTICES 64
-#define NUM_INDICES 96
 #define COLOR_OPAQUE {1.0f, 1.0f, 1.0f, 1.0f}
-static SDL_Vertex geometry[NUM_VERTICES] = {
-	{{0, 1080},	COLOR_OPAQUE, {0.0, 0.25}}, // Layer 0
-	{{1920, 1080},	COLOR_OPAQUE, {0.25, 0.25}},
-	{{1920, 0},	COLOR_OPAQUE, {0.25, 0.0}},
-	{{0, 0},	COLOR_OPAQUE, {0.0, 0.0}},
-	{{0, 1080},	COLOR_OPAQUE, {0.25, 0.25}}, // Layer 1
-	{{1920, 1080},	COLOR_OPAQUE, {0.50, 0.25}},
-	{{1920, 0},	COLOR_OPAQUE, {0.50, 0.0}},
-	{{0, 0},	COLOR_OPAQUE, {0.25, 0.0}},
-	{{0, 1080},	COLOR_OPAQUE, {0.50, 0.25}}, // Layer 2
-	{{1920, 1080},	COLOR_OPAQUE, {0.75, 0.25}},
-	{{1920, 0},	COLOR_OPAQUE, {0.75, 0.0}},
-	{{0, 0},	COLOR_OPAQUE, {0.50, 0.0}},
-	{{0, 1080},	COLOR_OPAQUE, {0.75, 0.25}}, // Layer 3
-	{{1920, 1080},	COLOR_OPAQUE, {1.0, 0.25}},
-	{{1920, 0},	COLOR_OPAQUE, {1.0, 0.0}},
-	{{0, 0},	COLOR_OPAQUE, {0.75, 0.0}},
-	{{0, 1080},	COLOR_OPAQUE, {0.0, 0.50}}, // Layer 4
-	{{1920, 1080},	COLOR_OPAQUE, {0.25, 0.50}},
-	{{1920, 0},	COLOR_OPAQUE, {0.25, 0.25}},
-	{{0, 0},	COLOR_OPAQUE, {0.0, 0.25}},
-	{{0, 1080},	COLOR_OPAQUE, {0.25, 0.50}}, // Layer 5
-	{{1920, 1080},	COLOR_OPAQUE, {0.50, 0.50}},
-	{{1920, 0},	COLOR_OPAQUE, {0.50, 0.25}},
-	{{0, 0},	COLOR_OPAQUE, {0.25, 0.25}},
-	{{0, 1080},	COLOR_OPAQUE, {0.50, 0.50}}, // Layer 6
-	{{1920, 1080},	COLOR_OPAQUE, {0.75, 0.50}},
-	{{1920, 0},	COLOR_OPAQUE, {0.75, 0.25}},
-	{{0, 0},	COLOR_OPAQUE, {0.50, 0.25}},
-	{{0, 1080},	COLOR_OPAQUE, {0.75, 0.50}}, // Layer 7
-	{{1920, 1080},	COLOR_OPAQUE, {1.0, 0.50}},
-	{{1920, 0},	COLOR_OPAQUE, {1.0, 0.25}},
-	{{0, 0},	COLOR_OPAQUE, {0.75, 0.25}},
-	{{0, 1080},	COLOR_OPAQUE, {0.0, 0.75}}, // Layer 8
-	{{1920, 1080},	COLOR_OPAQUE, {0.25, 0.75}},
-	{{1920, 0},	COLOR_OPAQUE, {0.25, 0.50}},
-	{{0, 0},	COLOR_OPAQUE, {0.0, 0.50}},
-	{{0, 1080},	COLOR_OPAQUE, {0.25, 0.75}}, // Layer 9
-	{{1920, 1080},	COLOR_OPAQUE, {0.50, 0.75}},
-	{{1920, 0},	COLOR_OPAQUE, {0.50, 0.50}},
-	{{0, 0},	COLOR_OPAQUE, {0.25, 0.50}},
-	{{0, 1080},	COLOR_OPAQUE, {0.50, 0.75}}, // Layer 10
-	{{1920, 1080},	COLOR_OPAQUE, {0.75, 0.75}},
-	{{1920, 0},	COLOR_OPAQUE, {0.75, 0.50}},
-	{{0, 0},	COLOR_OPAQUE, {0.50, 0.50}},
-	{{0, 1080},	COLOR_OPAQUE, {0.75, 0.75}}, // Layer 11
-	{{1920, 1080},	COLOR_OPAQUE, {1.0, 0.75}},
-	{{1920, 0},	COLOR_OPAQUE, {1.0, 0.50}},
-	{{0, 0},	COLOR_OPAQUE, {0.75, 0.50}},
-	{{0, 1080},	COLOR_OPAQUE, {0.0, 1.0}}, // Layer 12
-	{{1920, 1080},	COLOR_OPAQUE, {0.25, 1.0}},
-	{{1920, 0},	COLOR_OPAQUE, {0.25, 0.75}},
-	{{0, 0},	COLOR_OPAQUE, {0.0, 0.75}},
-	{{0, 1080},	COLOR_OPAQUE, {0.25, 1.0}}, // Layer 13
-	{{1920, 1080},	COLOR_OPAQUE, {0.50, 1.0}},
-	{{1920, 0},	COLOR_OPAQUE, {0.50, 0.75}},
-	{{0, 0},	COLOR_OPAQUE, {0.25, 0.75}},
-	{{0, 1080},	COLOR_OPAQUE, {0.50, 1.0}}, // Layer 14
-	{{1920, 1080},	COLOR_OPAQUE, {0.75, 1.0}},
-	{{1920, 0},	COLOR_OPAQUE, {0.75, 0.75}},
-	{{0, 0},	COLOR_OPAQUE, {0.50, 0.75}},
-	{{0, 1080},	COLOR_OPAQUE, {0.75, 1.0}}, // Layer 15
-	{{1920, 1080},	COLOR_OPAQUE, {1.0, 1.0}},
-	{{1920, 0},	COLOR_OPAQUE, {1.0, 0.75}},
-	{{0, 0},	COLOR_OPAQUE, {0.75, 0.75}}
+#define SCREEN_LAYER_NUM_VERTICES 64
+#define SCREEN_LAYER_NUM_INDICES 96
+static SDL_Vertex SCREEN_LAYER_GEOMETRY[SCREEN_LAYER_NUM_VERTICES] = {
+	// Coordinate template:
+	// {0, y}, {x, y}, {x, 0}, {0, 0}
+	{{0}, COLOR_OPAQUE, {0.0, 0.25}}, // Layer 0
+	{{0}, COLOR_OPAQUE, {0.25, 0.25}},
+	{{0}, COLOR_OPAQUE, {0.25, 0.0}},
+	{{0}, COLOR_OPAQUE, {0.0, 0.0}},
+	{{0}, COLOR_OPAQUE, {0.25, 0.25}}, // Layer 1
+	{{0}, COLOR_OPAQUE, {0.50, 0.25}},
+	{{0}, COLOR_OPAQUE, {0.50, 0.0}},
+	{{0}, COLOR_OPAQUE, {0.25, 0.0}},
+	{{0}, COLOR_OPAQUE, {0.50, 0.25}}, // Layer 2
+	{{0}, COLOR_OPAQUE, {0.75, 0.25}},
+	{{0}, COLOR_OPAQUE, {0.75, 0.0}},
+	{{0}, COLOR_OPAQUE, {0.50, 0.0}},
+	{{0}, COLOR_OPAQUE, {0.75, 0.25}}, // Layer 3
+	{{0}, COLOR_OPAQUE, {1.0, 0.25}},
+	{{0}, COLOR_OPAQUE, {1.0, 0.0}},
+	{{0}, COLOR_OPAQUE, {0.75, 0.0}},
+	{{0}, COLOR_OPAQUE, {0.0, 0.50}}, // Layer 4
+	{{0}, COLOR_OPAQUE, {0.25, 0.50}},
+	{{0}, COLOR_OPAQUE, {0.25, 0.25}},
+	{{0}, COLOR_OPAQUE, {0.0, 0.25}},
+	{{0}, COLOR_OPAQUE, {0.25, 0.50}}, // Layer 5
+	{{0}, COLOR_OPAQUE, {0.50, 0.50}},
+	{{0}, COLOR_OPAQUE, {0.50, 0.25}},
+	{{0}, COLOR_OPAQUE, {0.25, 0.25}},
+	{{0}, COLOR_OPAQUE, {0.50, 0.50}}, // Layer 6
+	{{0}, COLOR_OPAQUE, {0.75, 0.50}},
+	{{0}, COLOR_OPAQUE, {0.75, 0.25}},
+	{{0}, COLOR_OPAQUE, {0.50, 0.25}},
+	{{0}, COLOR_OPAQUE, {0.75, 0.50}}, // Layer 7
+	{{0}, COLOR_OPAQUE, {1.0, 0.50}},
+	{{0}, COLOR_OPAQUE, {1.0, 0.25}},
+	{{0}, COLOR_OPAQUE, {0.75, 0.25}},
+	{{0}, COLOR_OPAQUE, {0.0, 0.75}}, // Layer 8
+	{{0}, COLOR_OPAQUE, {0.25, 0.75}},
+	{{0}, COLOR_OPAQUE, {0.25, 0.50}},
+	{{0}, COLOR_OPAQUE, {0.0, 0.50}},
+	{{0}, COLOR_OPAQUE, {0.25, 0.75}}, // Layer 9
+	{{0}, COLOR_OPAQUE, {0.50, 0.75}},
+	{{0}, COLOR_OPAQUE, {0.50, 0.50}},
+	{{0}, COLOR_OPAQUE, {0.25, 0.50}},
+	{{0}, COLOR_OPAQUE, {0.50, 0.75}}, // Layer 10
+	{{0}, COLOR_OPAQUE, {0.75, 0.75}},
+	{{0}, COLOR_OPAQUE, {0.75, 0.50}},
+	{{0}, COLOR_OPAQUE, {0.50, 0.50}},
+	{{0}, COLOR_OPAQUE, {0.75, 0.75}}, // Layer 11
+	{{0}, COLOR_OPAQUE, {1.0, 0.75}},
+	{{0}, COLOR_OPAQUE, {1.0, 0.50}},
+	{{0}, COLOR_OPAQUE, {0.75, 0.50}},
+	{{0}, COLOR_OPAQUE, {0.0, 1.0}}, // Layer 12
+	{{0}, COLOR_OPAQUE, {0.25, 1.0}},
+	{{0}, COLOR_OPAQUE, {0.25, 0.75}},
+	{{0}, COLOR_OPAQUE, {0.0, 0.75}},
+	{{0}, COLOR_OPAQUE, {0.25, 1.0}}, // Layer 13
+	{{0}, COLOR_OPAQUE, {0.50, 1.0}},
+	{{0}, COLOR_OPAQUE, {0.50, 0.75}},
+	{{0}, COLOR_OPAQUE, {0.25, 0.75}},
+	{{0}, COLOR_OPAQUE, {0.50, 1.0}}, // Layer 14
+	{{0}, COLOR_OPAQUE, {0.75, 1.0}},
+	{{0}, COLOR_OPAQUE, {0.75, 0.75}},
+	{{0}, COLOR_OPAQUE, {0.50, 0.75}},
+	{{0}, COLOR_OPAQUE, {0.75, 1.0}}, // Layer 15
+	{{0}, COLOR_OPAQUE, {1.0, 1.0}},
+	{{0}, COLOR_OPAQUE, {1.0, 0.75}},
+	{{0}, COLOR_OPAQUE, {0.75, 0.75}}
 };
-static int indices[NUM_INDICES] = {
+static int SCREEN_LAYER_INDICES[SCREEN_LAYER_NUM_INDICES] = {
 	0, 1, 2, 0, 2, 3, // Layer 0
 	4, 5, 6, 4, 6, 7, // Layer 1
 	8, 9, 10, 8, 10, 11, // Layer 2
@@ -109,73 +120,244 @@ static int indices[NUM_INDICES] = {
 	60, 61, 62, 60, 62, 63 // Layer 15
 };
 
-int render_init (SDL_Renderer **dst, struct renderer_create_info *info) {
-	render_state = *info;
-	window = SDL_CreateWindow(info->title, info->window_w, info->window_h,
-			SDL_WINDOW_RESIZABLE);
-	if (!window) {
+SDL_Window * make_window_from_properties (struct window_create_info *info) {
+	// Return value must be destroyed with SDL_DestroyProperties
+	SDL_PropertiesID props = SDL_CreateProperties();
+	// Title
+	SDL_SetStringProperty(props,
+		SDL_PROP_WINDOW_CREATE_TITLE_STRING, info->title
+	);
+	// Size & Position
+	if (info->bounds.w != 0) {
+		SDL_SetNumberProperty(props,
+			SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, info->bounds.w
+		);
+	}
+	if (info->bounds.h != 0) {
+		SDL_SetNumberProperty(props,
+			SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, info->bounds.h
+		);
+	}
+	SDL_SetNumberProperty(props,
+		SDL_PROP_WINDOW_CREATE_X_NUMBER, info->bounds.x
+	);
+	SDL_SetNumberProperty(props,
+		SDL_PROP_WINDOW_CREATE_Y_NUMBER, info->bounds.y
+	);
+	// Fullscreen
+	SDL_SetBooleanProperty(props,
+		SDL_PROP_WINDOW_CREATE_FULLSCREEN_BOOLEAN, info->fullscreen
+	);
+	// Maximized
+	SDL_SetBooleanProperty(props,
+		SDL_PROP_WINDOW_CREATE_MAXIMIZED_BOOLEAN, info->maximized
+	);
+	// Resizable
+	SDL_SetBooleanProperty(props,
+		SDL_PROP_WINDOW_CREATE_RESIZABLE_BOOLEAN, info->resizable
+	);
+	//Hidden
+	SDL_SetBooleanProperty(props,
+		SDL_PROP_WINDOW_CREATE_HIDDEN_BOOLEAN, info->hidden
+	);
+
+	SDL_Window *ret = SDL_CreateWindowWithProperties(props);
+	SDL_DestroyProperties(props);
+	return ret;
+}
+
+SDL_DisplayID get_display_from_name (const char *name) {
+	if (!name) {
+		return SDL_GetPrimaryDisplay();
+	}
+	int count;
+	SDL_DisplayID ret = 0;
+	SDL_DisplayID *displays = SDL_GetDisplays(&count);
+	for (int i = 0; i < count; i++) {
+		const char *curr_name = SDL_GetDisplayName(displays[i]);
+		log_debug("Checking Display %s", curr_name);
+		if (!SDL_strcmp(curr_name, name)) {
+			ret = displays[i];
+			break;
+		}
+	}
+	SDL_free(displays);
+	if (!ret) {
+		log_warn("No display found matching %s", name);
+		ret = SDL_GetPrimaryDisplay();
+	}
+	return ret;
+}
+
+SDL_Window * window_init (struct window_create_info *info) {
+	SDL_SetHint(SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES, "1");
+	log_debug("Fullscreen space hint: %s",
+			SDL_GetHint(SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES));
+	// Search for display
+	SDL_DisplayID display = get_display_from_name(info->display_name);
+	if (!display) {
+		log_critical(
+		"No display found: %s", SDL_GetError());
+		return NULL;
+	}
+	info->display = display;
+	// Fullscreen
+	if (info->fullscreen)
+		return make_window_from_properties(info);
+	
+	// Windowed
+	SDL_Rect bounds;
+	if (!SDL_GetDisplayUsableBounds(display, &bounds)) {
+		log_error(
+		"Could not get display bounds; defaulting to 1920 x 1080: %s",
+		SDL_GetError());
+		bounds = (SDL_Rect) {0, 0, 1920, 1080};
+	}
+	// Optional logic to match aspect ratio
+	info->bounds.x = bounds.x;
+	info->bounds.y = bounds.y;
+	info->bounds.w = bounds.w < info->target_width ?
+		info->target_width : bounds.w;
+	info->bounds.h = bounds.h < info->target_height ?
+		info->target_height : bounds.h;
+	return make_window_from_properties(info);
+}
+
+SDL_Texture * make_screen_layers (
+		int target_width, int target_height,
+		int max_width, int max_height,
+		int *actual_width, int *actual_height) {
+	SDL_PixelFormat format = SDL_GetWindowPixelFormat(RENDER_STATE.window);
+	if (format == SDL_PIXELFORMAT_UNKNOWN) {
+		log_error(
+		"Window pixel format unknown; defaulting to ABGR8888: %s",
+		SDL_GetError());
+		format = SDL_PIXELFORMAT_ABGR8888;
+	}
+	int w, h;
+	if (!SDL_GetWindowSizeInPixels(RENDER_STATE.window, &w, &h)) {
+		log_error(
+		"Could not get current window size: %s", SDL_GetError());
+		return NULL;
+	}
+	log_debug("Window: %d, %d", w, h);
+	int best_scale = 0;
+	int best_score = target_height*target_height + target_width*target_width;
+	for (int div = 1; div <= SCREEN_LAYER_MAX_SCALE; div++) {
+		if (w / div > max_width || h / div > max_height)
+			continue;
+		int score = (target_width - w / div) * (target_width - w / div)
+			+ (target_height - h / div) * (target_height - h / div);
+		if (score < best_score) {
+			best_score = score;
+			best_scale = div;
+		}
+	}
+	if (best_scale == 0) {
+		log_error(
+		"No good pixel scale. Is the display resolution super high?");
+		best_scale = SCREEN_LAYER_MAX_SCALE;
+	}
+	*actual_width = w / best_scale;
+	*actual_height = h / best_scale;
+	
+	SDL_Texture *ret = SDL_CreateTexture(RENDER_STATE.renderer, format,
+		SDL_TEXTUREACCESS_TARGET,
+		4*(*actual_width), 4*(*actual_height));
+	log_debug("Texture made %d, %d", ret->w, ret->h);
+	return ret;
+}
+
+void set_screen_layer_coords (float w, float h) {
+	// {0, y}, {x, y}, {x, 0}, {0, 0}
+	if (SCREEN_LAYER_NUM_VERTICES % 4 != 0) {
+		log_error("SCREEN_LAYER_NUM_VERTICES is not a multiple of 4");
+		return;
+	}
+	SDL_Vertex *geom = SCREEN_LAYER_GEOMETRY;
+	for (int i = 0; i < SCREEN_LAYER_NUM_VERTICES / 4; i++) {
+		(geom + 4*i + 0)->position = (SDL_FPoint) {0, h};
+		(geom + 4*i + 1)->position = (SDL_FPoint) {w, h};
+		(geom + 4*i + 2)->position = (SDL_FPoint) {w, 0};
+		(geom + 4*i + 3)->position = (SDL_FPoint) {0, 0};
+	}
+}
+
+int render_init (SDL_Renderer **dst, struct window_create_info *info) {
+	RENDER_STATE.window = window_init(info);
+	if (!RENDER_STATE.window) {
 		log_critical("Window creation failed: %s", SDL_GetError());
 		return -1;
 	}
 
-	renderer = SDL_CreateGPURenderer(NULL, window);
-	if (!renderer) {
+	RENDER_STATE.renderer = SDL_CreateGPURenderer(NULL, RENDER_STATE.window);
+	if (!RENDER_STATE.renderer) {
 		log_critical("Renderer creation failed: %s", SDL_GetError());
 		return -1;
 	}
-	SDL_SetRenderLogicalPresentation(renderer, info->logical_w,
-			info->logical_h, SDL_LOGICAL_PRESENTATION_INTEGER_SCALE);
 
-	// Pixel format inferred by loading a PNG
-	screen = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888,
-			SDL_TEXTUREACCESS_TARGET, info->logical_w,
-			info->logical_h);
-	if (!screen) {
+	RENDER_STATE.screen = make_screen_layers(
+			info->target_width, info->target_height,
+			info->max_width, info->max_height,
+			&(RENDER_STATE.w), &(RENDER_STATE.h));
+	if (!RENDER_STATE.screen) {
 		log_critical("Failed to create screen texture: %s",
 				SDL_GetError());
 		return -1;
 	}
-	log_debug("screen: %d, %d", screen->w, screen->h);
-	SDL_SetTextureScaleMode(screen, SDL_SCALEMODE_NEAREST);
+	set_screen_layer_coords(
+			(float) 4 * RENDER_STATE.w,
+			(float) 4 * RENDER_STATE.h);
+	SDL_SetTextureScaleMode(RENDER_STATE.screen, SDL_SCALEMODE_NEAREST);
+	/*
+	SDL_SetRenderLogicalPresentation(RENDER_STATE.renderer,
+			RENDER_STATE.w,
+			RENDER_STATE.h,
+			SDL_LOGICAL_PRESENTATION_INTEGER_SCALE);
+	*/
+	// Assuming window was created in a hidden state
+	SDL_ShowWindow(RENDER_STATE.window);
 	// By default, draw to the screen and composite in render_present
-	SDL_SetRenderTarget(renderer, screen);
+	SDL_SetRenderTarget(RENDER_STATE.renderer, RENDER_STATE.screen);
 	if (dst)
-		*dst = renderer;
+		*dst = RENDER_STATE.renderer;
 	return 0;
 }
 
 void render_dest (void) {
-	if (window)
-		SDL_DestroyWindow(window);
-	if (renderer)
-		SDL_DestroyRenderer(renderer);
-	if (screen)
-		SDL_DestroyTexture(screen);
+	if (RENDER_STATE.window)
+		SDL_DestroyWindow(RENDER_STATE.window);
+	if (RENDER_STATE.renderer)
+		SDL_DestroyRenderer(RENDER_STATE.renderer);
+	if (RENDER_STATE.screen)
+		SDL_DestroyTexture(RENDER_STATE.screen);
 }
 
 int render_present (void) {
-	SDL_Texture *tmp = SDL_GetRenderTarget(renderer);
-	SDL_SetRenderTarget(renderer, NULL); // Draw to the window
+	SDL_SetRenderTarget(RENDER_STATE.renderer, NULL); // Draw to the window
 
-	SDL_SetRenderDrawColor(renderer, 64, 64, 64, SDL_ALPHA_OPAQUE);
-	SDL_RenderClear(renderer);
+	SDL_SetRenderDrawColor(RENDER_STATE.renderer,
+			64, 64, 64, SDL_ALPHA_OPAQUE);
+	SDL_RenderClear(RENDER_STATE.renderer);
 
+	SDL_RenderGeometry(RENDER_STATE.renderer, RENDER_STATE.screen,
+			SCREEN_LAYER_GEOMETRY, SCREEN_LAYER_NUM_VERTICES,
+			SCREEN_LAYER_INDICES, SCREEN_LAYER_NUM_INDICES);
 
-	SDL_RenderGeometry(renderer, screen, geometry, NUM_VERTICES,
-			indices, NUM_INDICES);
-
-	SDL_RenderPresent(renderer);
-	SDL_SetRenderTarget(renderer, tmp); // Restore previous target
-	SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_TRANSPARENT);
-	SDL_RenderClear(renderer);
+	SDL_RenderPresent(RENDER_STATE.renderer);
+	// Return target to screen and flush
+	SDL_SetRenderTarget(RENDER_STATE.renderer, RENDER_STATE.screen);
+	SDL_SetRenderDrawColor(RENDER_STATE.renderer,
+			0, 0, 0, SDL_ALPHA_TRANSPARENT);
+	SDL_RenderClear(RENDER_STATE.renderer);
 	return 0;
 }
 
 static SDL_FRect layer_rect (Uint32 layer) {
-	SDL_FPoint upper_left = geometry[4*layer + 3].tex_coord;
-	float w = (float) render_state.logical_w;
-	float h = (float) render_state.logical_h;
-	return (SDL_FRect) {w*upper_left.x, h*upper_left.y, w/4, h/4};
+	SDL_FPoint upper_left = SCREEN_LAYER_GEOMETRY[4*layer + 3].tex_coord;
+	float w = (float) RENDER_STATE.w;
+	float h = (float) RENDER_STATE.h;
+	return (SDL_FRect) {4*w*upper_left.x, 4*h*upper_left.y, w, h};
 }
 
 SDL_FRect render_get_layer (SDL_Renderer **ren_dst, SDL_Texture **tex_dst,
@@ -183,9 +365,9 @@ SDL_FRect render_get_layer (SDL_Renderer **ren_dst, SDL_Texture **tex_dst,
 	if (!(0 <= layer && layer < 16))
 		return (SDL_FRect) {0};
 	if (ren_dst)
-		*ren_dst = renderer;
+		*ren_dst = RENDER_STATE.renderer;
 	if (tex_dst)
-		*tex_dst = screen;
+		*tex_dst = RENDER_STATE.screen;
 	return layer_rect(layer);
 }
 
@@ -195,10 +377,10 @@ SDL_Renderer * render_set_layer (Uint32 layer) {
 	SDL_FRect rect = layer_rect(layer);
 	SDL_Rect viewport = {
 		.x = (int) rect.x, .y = (int) rect.y,
-		.w = (int) rect.y, .h = (int) rect.h
+		.w = (int) rect.w, .h = (int) rect.h
 	};
-	if(!SDL_SetRenderViewport(renderer, &viewport))
+	if(!SDL_SetRenderViewport(RENDER_STATE.renderer, &viewport))
 		log_error("Viewport change failed: %s", SDL_GetError());
-	return renderer;
+	return RENDER_STATE.renderer;
 }
 

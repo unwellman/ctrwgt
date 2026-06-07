@@ -1,22 +1,34 @@
 #ifndef CTRW_RENDER_H
 #define CTRW_RENDER_H
 
+#include <stdbool.h>
+
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_render.h>
 #include <SDL3/SDL_video.h>
+#include <SDL3/SDL_properties.h>
+#include <SDL3/SDL_stdinc.h>
+#include <SDL3/SDL_hints.h>
 
-struct renderer_create_info {
-	Uint32 window_w, window_h, logical_w, logical_h;
-	Uint32 layers;
+struct window_create_info {
+	// External
 	const char *title;
+	char *display_name;
+	bool fullscreen, maximized, resizable, hidden;
+	int target_width, target_height;
+	int max_width, max_height;
+	
+	// Internal
+	SDL_Rect bounds;
+	SDL_DisplayID display;
 };
 
-extern struct renderer_create_info RENDERER_DEFAULTS;
+extern struct window_create_info WINDOW_DEFAULTS;
 
 /* The initialization behavior is hardcoded, so info will be ignored.
  * I may not ever change this fact.
  * */
-int render_init (SDL_Renderer **dst, struct renderer_create_info *info);
+int render_init (SDL_Renderer **dst, struct window_create_info *info);
 
 void render_dest (void);
 

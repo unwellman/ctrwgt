@@ -66,7 +66,7 @@ static Uint64 frame_counter = 0;
 static double measured_frame_rate = 0;
 
 static enum state_response ground_state_init (struct state *self) {
-	int res = render_init(NULL, &RENDERER_DEFAULTS);
+	int res = render_init(NULL, &WINDOW_DEFAULTS);
 	if (res)
 		return STATE_FAILURE;
 	return STATE_CONTINUE;
@@ -89,9 +89,12 @@ static enum state_response ground_state_iterate (struct state *self,
 		log_critical("Render layer out of range");
 		return STATE_FAILURE;
 	}
+	Uint8 r, g, b, a;
+	SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
 	SDL_SetRenderDrawColor(renderer, 255, 255, 255, SDL_ALPHA_OPAQUE);
-	SDL_RenderDebugTextFormat(renderer, 0.0, 0.0, "%.0f FPS",
+	SDL_RenderDebugTextFormat(renderer, 0, 0, "%.0f FPS",
 			measured_frame_rate);
+	SDL_SetRenderDrawColor(renderer, r, g, b, a);
 
 	render_present();
 	return STATE_CONTINUE;
