@@ -204,7 +204,7 @@ SDL_Window * window_init (struct window_create_info *info) {
 	// Fullscreen
 	if (info->fullscreen)
 		return make_window_from_properties(info);
-	
+
 	// Windowed
 	SDL_Rect bounds;
 	if (!SDL_GetDisplayUsableBounds(display, &bounds)) {
@@ -240,7 +240,6 @@ SDL_Texture * make_screen_layers (
 		"Could not get current window size: %s", SDL_GetError());
 		return NULL;
 	}
-	log_debug("Window: %d, %d", w, h);
 	int best_scale = 0;
 	int best_score = target_height*target_height + target_width*target_width;
 	for (int div = 1; div <= SCREEN_LAYER_MAX_SCALE; div++) {
@@ -258,13 +257,13 @@ SDL_Texture * make_screen_layers (
 		"No good pixel scale. Is the display resolution super high?");
 		best_scale = SCREEN_LAYER_MAX_SCALE;
 	}
+	log_debug("Scale factor chosen: %d", best_scale);
 	*actual_width = w / best_scale;
 	*actual_height = h / best_scale;
 	
 	SDL_Texture *ret = SDL_CreateTexture(RENDER_STATE.renderer, format,
 		SDL_TEXTUREACCESS_TARGET,
 		4*(*actual_width), 4*(*actual_height));
-	log_debug("Texture made %d, %d", ret->w, ret->h);
 	return ret;
 }
 
@@ -309,12 +308,6 @@ int render_init (SDL_Renderer **dst, struct window_create_info *info) {
 			(float) 4 * RENDER_STATE.w,
 			(float) 4 * RENDER_STATE.h);
 	SDL_SetTextureScaleMode(RENDER_STATE.screen, SDL_SCALEMODE_NEAREST);
-	/*
-	SDL_SetRenderLogicalPresentation(RENDER_STATE.renderer,
-			RENDER_STATE.w,
-			RENDER_STATE.h,
-			SDL_LOGICAL_PRESENTATION_INTEGER_SCALE);
-	*/
 	// Assuming window was created in a hidden state
 	SDL_ShowWindow(RENDER_STATE.window);
 	// By default, draw to the screen and composite in render_present
@@ -325,12 +318,15 @@ int render_init (SDL_Renderer **dst, struct window_create_info *info) {
 }
 
 void render_dest (void) {
-	if (RENDER_STATE.window)
-		SDL_DestroyWindow(RENDER_STATE.window);
 	if (RENDER_STATE.renderer)
-		SDL_DestroyRenderer(RENDER_STATE.renderer);
+		SDL_SetRenderTarget(RENDER_STATE.renderer, NULL);
+
 	if (RENDER_STATE.screen)
 		SDL_DestroyTexture(RENDER_STATE.screen);
+	if (RENDER_STATE.renderer)
+		SDL_DestroyRenderer(RENDER_STATE.renderer);
+	if (RENDER_STATE.window)
+		SDL_DestroyWindow(RENDER_STATE.window);
 }
 
 int render_present (void) {
@@ -383,4 +379,142 @@ SDL_Renderer * render_set_layer (Uint32 layer) {
 		log_error("Viewport change failed: %s", SDL_GetError());
 	return RENDER_STATE.renderer;
 }
+
+// State and event handling
+
+enum state_response window_state_resize (struct state *self,
+		SDL_WindowEvent *event) {
+	struct window_state_data *data = self->data;
+	struct window_create_info *info = data->info;
+	SDL_SetRenderTarget(RENDER_STATE.renderer, NULL);
+
+	SDL_DestroyTexture(RENDER_STATE.screen);
+
+	RENDER_STATE.screen = make_screen_layers(
+			info->target_width, info->target_height,
+			info->max_width, info->max_height,
+			&(RENDER_STATE.w), &(RENDER_STATE.h));
+	if (!RENDER_STATE.screen) {
+		log_critical("Failed to create screen texture: %s",
+				SDL_GetError());
+		return STATE_FAILURE;
+	}
+	set_screen_layer_coords(
+			(float) 4 * RENDER_STATE.w,
+			(float) 4 * RENDER_STATE.h);
+	SDL_SetTextureScaleMode(RENDER_STATE.screen, SDL_SCALEMODE_NEAREST);
+
+	SDL_SetRenderTarget(RENDER_STATE.renderer, RENDER_STATE.screen);
+	log_info("Resized window to logical size %d, %d",
+			RENDER_STATE.w, RENDER_STATE.h);
+	return STATE_CONTINUE;
+}
+
+static enum state_response window_state_init (struct state *self) {
+	struct window_state_data *data = self->data;
+	struct window_create_info *info = data->info;
+	int res = render_init(&(RENDER_STATE.renderer), info);
+	if (res)
+		return STATE_FAILURE;
+	return STATE_CONTINUE;
+}
+
+static double time_elapsed = 0;
+static Uint64 second_counter = 0;
+static Uint64 frame_counter = 0;
+static double measured_frame_rate = 0;
+static enum state_response window_state_iterate (struct state *self,
+		enum state_response prev, double dt) {
+	frame_counter++;
+	time_elapsed += dt;
+	if ((Uint64) time_elapsed > second_counter) {
+		second_counter++;
+		measured_frame_rate = (double) frame_counter;
+		frame_counter = 0;
+	}
+
+	// Draw some debug text
+	SDL_Renderer *renderer = render_set_layer(15);
+	if (!renderer) {
+		log_critical("Render layer out of range");
+		return STATE_FAILURE;
+	}
+	Uint8 r, g, b, a;
+	SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
+	SDL_SetRenderDrawColor(renderer, 255, 255, 255, SDL_ALPHA_OPAQUE);
+	SDL_RenderDebugTextFormat(renderer, 0, 0, "%.0f FPS",
+			measured_frame_rate);
+	SDL_SetRenderDrawColor(renderer, r, g, b, a);
+
+	int res = render_present();
+	if (res)
+		return STATE_FAILURE;
+	return STATE_CONTINUE;
+}
+
+static enum state_response window_state_event (struct state *self,
+		void *event) {
+	Uint32 type = ((SDL_Event *) event)->type;
+	switch (type) {
+	// Window events related to resizing
+	case SDL_EVENT_WINDOW_RESIZED:
+	case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+	case SDL_EVENT_WINDOW_METAL_VIEW_RESIZED:
+	case SDL_EVENT_WINDOW_ICCPROF_CHANGED:
+	case SDL_EVENT_WINDOW_DISPLAY_CHANGED:
+	case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
+	case SDL_EVENT_WINDOW_SAFE_AREA_CHANGED:
+	case SDL_EVENT_WINDOW_ENTER_FULLSCREEN:
+	case SDL_EVENT_WINDOW_LEAVE_FULLSCREEN:
+	case SDL_EVENT_WINDOW_HDR_STATE_CHANGED:
+	case SDL_EVENT_WINDOW_SETTINGS_CHANGED:
+		return window_state_resize(self, event);
+	// Window events which can be ignored
+	case SDL_EVENT_WINDOW_SHOWN:
+	case SDL_EVENT_WINDOW_HIDDEN:
+	case SDL_EVENT_WINDOW_EXPOSED:
+	case SDL_EVENT_WINDOW_MOVED:
+	case SDL_EVENT_WINDOW_MINIMIZED:
+	case SDL_EVENT_WINDOW_MAXIMIZED:
+	case SDL_EVENT_WINDOW_RESTORED:
+	case SDL_EVENT_WINDOW_MOUSE_ENTER:
+	case SDL_EVENT_WINDOW_MOUSE_LEAVE:
+	case SDL_EVENT_WINDOW_FOCUS_GAINED:
+	case SDL_EVENT_WINDOW_FOCUS_LOST:
+	case SDL_EVENT_WINDOW_HIT_TEST:
+	case SDL_EVENT_WINDOW_OCCLUDED:
+		return STATE_CONTINUE;
+	// Window events which should be passed on
+	case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+	case SDL_EVENT_WINDOW_DESTROYED:
+		return STATE_DEFER;
+	// Renderer events (handling not implemented)
+	case SDL_EVENT_RENDER_TARGETS_RESET:
+	case SDL_EVENT_RENDER_DEVICE_RESET:
+	case SDL_EVENT_RENDER_DEVICE_LOST:
+		log_critical("Unhandled renderer event: %s", SDL_GetError());
+		return STATE_FAILURE;
+	default:
+		return STATE_DEFER;
+	}
+}
+
+static void window_state_delete (struct state *self) {
+	render_dest();
+}
+
+struct window_state_data DATA = {
+	.info = &WINDOW_DEFAULTS,
+};
+
+struct state window_state = {
+	.name = "WINDOW_STATE",
+	.data = (void *) &DATA,
+	.init = window_state_init,
+	.iterate = window_state_iterate,
+	.event = window_state_event,
+	.del = window_state_delete
+};
+
+struct state *WINDOW_STATE = &window_state;
 

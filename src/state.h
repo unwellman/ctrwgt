@@ -47,6 +47,11 @@ struct state {
  * To be defined in main.c */
 extern struct state *GROUND_STATE;
 
+/* Window state, declared here to abstract renderer functions away from
+ * translation units that don't need them1
+ * */
+extern struct state *WINDOW_STATE;
+
 /* Push a new state onto the stack and call ptr->init()
  * Note that the state will be popped without calling iterate() if it returns
  * STATE_RETURN. */

@@ -9,7 +9,6 @@
 
 #include "state.h"
 #include "log.h"
-#include "render.h"
 #define LOGGING_DEV
 
 static Uint64 NS_ELAPSED;
@@ -24,6 +23,7 @@ SDL_AppResult SDL_AppInit (void **app_state, int argc, char *argv[]) {
 	}
 
 	state_stack_push(GROUND_STATE);
+	state_stack_push(WINDOW_STATE);
 	return SDL_APP_CONTINUE;
 }
 
@@ -60,43 +60,14 @@ void SDL_AppQuit (void *app_state, SDL_AppResult result) {
 }
 
 /* GROUND_STATE structures */
-static double ground_state_time_elapsed = 0;
-static Uint64 ground_state_second_counter = 0;
-static Uint64 frame_counter = 0;
-static double measured_frame_rate = 0;
 
 static enum state_response ground_state_init (struct state *self) {
-	int res = render_init(NULL, &WINDOW_DEFAULTS);
-	if (res)
-		return STATE_FAILURE;
 	return STATE_CONTINUE;
 }
 
 static enum state_response ground_state_iterate (struct state *self,
 		enum state_response prev, double dt) {
 	// Keep track of time
-	frame_counter++;
-	ground_state_time_elapsed += dt;
-	if ((Uint64) ground_state_time_elapsed > ground_state_second_counter) {
-		ground_state_second_counter++;
-		measured_frame_rate = (double) frame_counter;
-		frame_counter = 0;
-	}
-
-	// Draw some debug text
-	SDL_Renderer *renderer = render_set_layer(15);
-	if (!renderer) {
-		log_critical("Render layer out of range");
-		return STATE_FAILURE;
-	}
-	Uint8 r, g, b, a;
-	SDL_GetRenderDrawColor(renderer, &r, &g, &b, &a);
-	SDL_SetRenderDrawColor(renderer, 255, 255, 255, SDL_ALPHA_OPAQUE);
-	SDL_RenderDebugTextFormat(renderer, 0, 0, "%.0f FPS",
-			measured_frame_rate);
-	SDL_SetRenderDrawColor(renderer, r, g, b, a);
-
-	render_present();
 	return STATE_CONTINUE;
 }
 
@@ -111,7 +82,7 @@ static enum state_response ground_state_event (struct state *self,
 		log_trace("Received quit signal");
 		return STATE_RETURN;
 	}
-	log_error("Unhandled event %d", type);
+	log_error("Unhandled event 0x%x", type);
 	return STATE_CONTINUE;
 }
 

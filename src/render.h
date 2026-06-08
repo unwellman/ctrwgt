@@ -10,6 +10,8 @@
 #include <SDL3/SDL_stdinc.h>
 #include <SDL3/SDL_hints.h>
 
+#include "state.h"
+
 struct window_create_info {
 	// External
 	const char *title;
@@ -23,14 +25,11 @@ struct window_create_info {
 	SDL_DisplayID display;
 };
 
+struct window_state_data {
+	struct window_create_info *info;
+};
+
 extern struct window_create_info WINDOW_DEFAULTS;
-
-/* The initialization behavior is hardcoded, so info will be ignored.
- * I may not ever change this fact.
- * */
-int render_init (SDL_Renderer **dst, struct window_create_info *info);
-
-void render_dest (void);
 
 /* Change the renderer's viewport to draw on the given layer, returning
  * a pointer to the renderer.
@@ -38,8 +37,6 @@ void render_dest (void);
  * Currently hard-coded to 16 layers.
  * */
 SDL_Renderer * render_set_layer (Uint32 layer);
-
-int render_present (void);
 
 #endif
 
