@@ -475,7 +475,8 @@ static enum state_response window_state_event (struct state *self,
 	case SDL_EVENT_WINDOW_ENTER_FULLSCREEN:
 	case SDL_EVENT_WINDOW_LEAVE_FULLSCREEN:
 	case SDL_EVENT_WINDOW_HDR_STATE_CHANGED:
-	case SDL_EVENT_WINDOW_SETTINGS_CHANGED:
+	// Next one is VisionOS-specific and only 3 weeks old as of writing
+	//case SDL_EVENT_WINDOW_SETTINGS_CHANGED:
 		return window_state_resize(self, event);
 	// Window events which can be ignored
 	case SDL_EVENT_WINDOW_SHOWN:
