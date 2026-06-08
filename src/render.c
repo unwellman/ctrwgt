@@ -8,11 +8,12 @@ struct render_state {
 	SDL_Renderer *renderer;
 	SDL_Texture *screen;
 	int w, h;
+	int scale;
 };
-static struct render_state RENDER_STATE;
+static struct render_state RENDER_STATE = {0};
 
 char WINDOW_TITLE[] = "Counterweight";
-char DISPLAY_NAME[] = "Built-in Retina Display";
+char DISPLAY_NAME[] = "XG240R SERIES";
 struct window_create_info WINDOW_DEFAULTS = {
 	.title = WINDOW_TITLE,
 	.display_name = DISPLAY_NAME,
@@ -226,7 +227,8 @@ SDL_Window * window_init (struct window_create_info *info) {
 SDL_Texture * make_screen_layers (
 		int target_width, int target_height,
 		int max_width, int max_height,
-		int *actual_width, int *actual_height) {
+		int *actual_width, int *actual_height,
+		int *scale) {
 	SDL_PixelFormat format = SDL_GetWindowPixelFormat(RENDER_STATE.window);
 	if (format == SDL_PIXELFORMAT_UNKNOWN) {
 		log_error(
@@ -257,9 +259,9 @@ SDL_Texture * make_screen_layers (
 		"No good pixel scale. Is the display resolution super high?");
 		best_scale = SCREEN_LAYER_MAX_SCALE;
 	}
-	log_debug("Scale factor chosen: %d", best_scale);
 	*actual_width = w / best_scale;
 	*actual_height = h / best_scale;
+	*scale = best_scale;
 	
 	SDL_Texture *ret = SDL_CreateTexture(RENDER_STATE.renderer, format,
 		SDL_TEXTUREACCESS_TARGET,
@@ -298,15 +300,16 @@ int render_init (SDL_Renderer **dst, struct window_create_info *info) {
 	RENDER_STATE.screen = make_screen_layers(
 			info->target_width, info->target_height,
 			info->max_width, info->max_height,
-			&(RENDER_STATE.w), &(RENDER_STATE.h));
+			&(RENDER_STATE.w), &(RENDER_STATE.h),
+			&(RENDER_STATE.scale));
 	if (!RENDER_STATE.screen) {
 		log_critical("Failed to create screen texture: %s",
 				SDL_GetError());
 		return -1;
 	}
 	set_screen_layer_coords(
-			(float) 4 * RENDER_STATE.w,
-			(float) 4 * RENDER_STATE.h);
+			(float) RENDER_STATE.scale * RENDER_STATE.w,
+			(float) RENDER_STATE.scale * RENDER_STATE.h);
 	SDL_SetTextureScaleMode(RENDER_STATE.screen, SDL_SCALEMODE_NEAREST);
 	// Assuming window was created in a hidden state
 	SDL_ShowWindow(RENDER_STATE.window);
@@ -353,7 +356,11 @@ static SDL_FRect layer_rect (Uint32 layer) {
 	SDL_FPoint upper_left = SCREEN_LAYER_GEOMETRY[4*layer + 3].tex_coord;
 	float w = (float) RENDER_STATE.w;
 	float h = (float) RENDER_STATE.h;
-	return (SDL_FRect) {4*w*upper_left.x, 4*h*upper_left.y, w, h};
+	return (SDL_FRect) {
+		4 * w * upper_left.x,
+		4 * h * upper_left.y,
+		w,
+		h};
 }
 
 SDL_FRect render_get_layer (SDL_Renderer **ren_dst, SDL_Texture **tex_dst,
@@ -393,15 +400,16 @@ enum state_response window_state_resize (struct state *self,
 	RENDER_STATE.screen = make_screen_layers(
 			info->target_width, info->target_height,
 			info->max_width, info->max_height,
-			&(RENDER_STATE.w), &(RENDER_STATE.h));
+			&(RENDER_STATE.w), &(RENDER_STATE.h),
+			&(RENDER_STATE.scale));
 	if (!RENDER_STATE.screen) {
 		log_critical("Failed to create screen texture: %s",
 				SDL_GetError());
 		return STATE_FAILURE;
 	}
 	set_screen_layer_coords(
-			(float) 4 * RENDER_STATE.w,
-			(float) 4 * RENDER_STATE.h);
+			(float) RENDER_STATE.scale * RENDER_STATE.w,
+			(float) RENDER_STATE.scale * RENDER_STATE.h);
 	SDL_SetTextureScaleMode(RENDER_STATE.screen, SDL_SCALEMODE_NEAREST);
 
 	SDL_SetRenderTarget(RENDER_STATE.renderer, RENDER_STATE.screen);
