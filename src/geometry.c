@@ -211,12 +211,12 @@ struct edge * dcel_add_diagonal (struct dcel *arr, struct vertex *a,
 struct dcel * dcel_init_polygon (struct polygon *poly) {
 	// Expect a dcel with 2 faces, n vertices, 2n half-edges,
 	// and an Euler characteristic of 2
-	size_t n = poly->npts;
+	int n = poly->npts;
 	struct dcel *ret = dcel_create(n, 4*n - 6, n - 1);
 	struct vertex *last = ret->vbuf;
-	last->pt = poly->pts[0];
-	for (size_t i = 1; i < n; i++) {
-		last = dcel_connect_vertex(ret, poly->pts[i], last, ret->fbuf);
+	last->pt = poly->buf[0];
+	for (int i = 1; i < n; i++) {
+		last = dcel_connect_vertex(ret, poly->buf[i], last, ret->fbuf);
 		if(!last) { // Something went wrong
 			dcel_dest(ret);
 			return NULL;
@@ -231,54 +231,158 @@ struct dcel * dcel_init_polygon (struct polygon *poly) {
 	return ret;
 }
 
+
+static struct polygon polygon_create (int size) {
+	/* Callers must handle ret.buf being NULL
+	 * */
+	struct polygon ret;
+	SDL_FPoint *buf = SDL_malloc(sizeof(SDL_FPoint)*size);
+	ret.buf = buf;
+	ret.ptr = buf;
+	ret.size = size;
+	ret.npts = 0;
+	ret.closed = 0;
+	return ret;
+}
+static void polygon_dest (struct polygon *poly) {
+	SDL_free(poly->buf);
+	poly->ptr = NULL;
+	poly->size = 0;
+	poly->npts = 0;
+}
+static int polygon_add_point (struct polygon *poly, SDL_FPoint pt) {
+	// Returns an error code if reallocation fails
+	if ((size_t) (poly->ptr - poly->buf) >= poly->size) {
+		// Is it smart to double the size each time? Who knows
+		SDL_FPoint *tmp = poly->buf;
+		poly->buf =
+			SDL_realloc(poly->buf, 2*sizeof(SDL_FPoint)*poly->size);
+		poly->size = 2*poly->size;
+		if (!poly->buf) {
+			SDL_free(tmp);
+			log_error(
+"Failed to reallocate a polygon buffer at <%p>", tmp);
+			poly->ptr = NULL;
+			poly->size = 0;
+			poly->npts = 0;
+			return -1;
+		}
+	}
+	*(poly->ptr) = pt;
+	poly->ptr++;
+	poly->npts++;
+	return 0;
+}
+static void polygon_erase (struct polygon *poly) {
+	poly->ptr = poly->buf;
+	poly->npts = 0;
+}
+
+static SDL_FPoint bezier_evaluate (struct bezier bez, float t) {
+	SDL_FPoint B0 = bez.pts[0];
+	SDL_FPoint B1 = bez.pts[1];
+	SDL_FPoint B2 = bez.pts[2];
+	SDL_FPoint B3 = bez.pts[3];
+	float ret_x = B0.x * (1 - t)*(1 - t)*(1 - t)
+		+ 3*B1.x * t * (1 - t)*(1 - t)
+		+ 3*B2.x * t*t * (1 - t) + B3.x * t*t*t;
+	float ret_y = B0.y * (1 - t)*(1 - t)*(1 - t)
+		+ 3*B1.y * t * (1 - t)*(1 - t)
+		+ 3*B2.y * t*t * (1 - t) + B3.y * t*t*t;
+	return (SDL_FPoint) {ret_x, ret_y};
+}
+static SDL_FPoint bezier_derivative (struct bezier bez, float t) {
+	SDL_FPoint B0 = bez.pts[0];
+	SDL_FPoint B1 = bez.pts[1];
+	SDL_FPoint B2 = bez.pts[2];
+	SDL_FPoint B3 = bez.pts[3];
+	float x_grad = 3*t*t*(-B0.x + 3*B1.x - 3*B2.x + B3.x)
+		+ 6*t*(B0.x + 2*B1.x + B2.x) + 3*(-B0.x + B1.x);
+	float y_grad = 3*t*t*(-B0.y + 3*B1.y - 3*B2.y + B3.y)
+		+ 6*t*(B0.y + 2*B1.y + B2.y) + 3*(-B0.y + B1.y);
+	return (SDL_FPoint) {x_grad, y_grad};
+}
+static float fpoint_magnitude (SDL_FPoint pt) {
+	return SDL_sqrtf(pt.x*pt.x + pt.y*pt.y);
+}
+static float bezier_derivative_magnitude (struct bezier bez, float t) {
+	return fpoint_magnitude(bezier_derivative(bez, t));
+}
+static float arc_length_approx (struct bezier bez, float t) {
+	float q0 = bezier_derivative_magnitude(bez, 1.774597/2 * t);
+	float q1 = bezier_derivative_magnitude(bez, 1/2 * t);
+	float q2 = bezier_derivative_magnitude(bez, 0.225403/2 * t);
+	return t/2 * (5/9 * q0 + 8/9 * q1 + 5/9 * q2);
+}
+static float arc_length_newton (struct bezier bez, float arc,
+		float rtol, int max_iter) {
+	// Use Newton's method on the Gaussian quadrature approximation
+	// of cubic Bezier arc length
+	float ret = 0.5;
+	for (int i = 0; i < max_iter; i++) {
+		float arc_diff = arc_length_approx(bez, ret) - arc;
+		float arc_rel = arc_diff / arc;
+		if (arc_rel < rtol && -arc_rel > -rtol)
+			break;
+		float arc_grad = bezier_derivative_magnitude(bez, ret);
+		ret = ret - arc_diff / arc_grad;
+	}
+	// Clamp to valid Bezier parameter bounds
+	if (ret < 0.0f)
+		ret = 0.0f;
+	if (ret > 1.0f)
+		ret = 1.0f;
+	return ret;
+}
+static int bezier_polygon (struct bezier bez, struct polygon *poly,
+		int max_segments, float atol) {
+	// Sample a Bezier curve into discrete polygonal segments
+	// Error is the absolute deviation of the bezier from a linear path
+	//
+	// Return values:
+	// 0: success
+	// -1: memory-related failure
+	// 0x2: over tolerance
+	float total_arc = arc_length_approx(bez, 1.0f);
+	for (int seg = 1; seg < max_segments; seg++) {
+		// Is a linear search efficient? No.
+		// I suspect that this won't be a significant performance issue.
+		int over_tol = 0; // Set to 1 if tolerance is exceeded
+		float freq = 1.0f / (float) seg;
+
+		polygon_erase(poly);
+		float t = 0.0f;
+		for (int i = 0; i < seg; i++) {
+			float t_prev = t;
+			float arc_target = (float) i * freq * total_arc;
+			float t = arc_length_newton(bez, arc_target,
+					1.0e-6, 512);
+			SDL_FPoint point = bezier_evaluate(bez, t);
+			if (polygon_add_point(poly, point)) {
+				// Realloc failure or other buffer overflow
+				return -1;
+			}
+
+			SDL_FPoint real = bezier_evaluate(bez, (t + t_prev)/2);
+			SDL_FPoint prev = poly->ptr[-1];
+			prev.x = (point.x + prev.x) / 2 - real.x;
+			prev.y = (point.y + prev.y) / 2 - real.y;
+			float err = fpoint_magnitude(prev);
+			if (err > atol)
+				over_tol = 1;
+		}
+		if (!over_tol)
+			return 0;
+	}
+	log_warn("Bezier flattening <%p> over tolerance", poly->buf);
+	return 0x2;
+}
+
+
 /*
 enum vertex_type {
 	VERTEX_START, VERTEX_END, VERTEX_SPLIT, VERTEX_MERGE, VERTEX_REGULAR
 };
-static void polygon_add_point (struct polygon *polygon, SDL_FPoint pt);
-
-
-void flatten_bezier (struct polygon *target, struct bezier bez, int depth) {
-	// Algorithm courtesy of NanoSVG:
-	// nsvg__addPathPoint in nanosvgrast.h
-	SDL_FPoint p01, p12, p23, p012, p123, p0123;
-	SDL_FPoint d;
-
-	if (depth > 10) return;
-	p01.x = (bez.pts[0].x + bez.pts[1].x) * 0.5f;
-	p01.y = (bez.pts[0].y + bez.pts[1].y) * 0.5f;
-	p12.x = (bez.pts[1].x + bez.pts[2].x) * 0.5f;
-	p12.y = (bez.pts[1].y + bez.pts[2].y) * 0.5f;
-	p23.x = (bez.pts[2].x + bez.pts[3].x) * 0.5f;
-	p23.y = (bez.pts[2].y + bez.pts[3].y) * 0.5f;
-
-	p012.x = (p01.x + p12.x) * 0.5f;
-	p012.y = (p01.y + p12.y) * 0.5f;
-
-	d.x = bez.pts[3].x - bez.pts[0].x;
-	d.y = bez.pts[3].y - bez.pts[0].y;
-
-	float d1 = abs((bez.pts[3].x - bez.pts[1].x) * d.y
-			- (bez.pts[3].y - bez.pts[1].y) * d.x);
-	float d2 = abs((bez.pts[3].x - bez.pts[2].x) * d.y
-			- (bez.pts[3].y - bez.pts[2].y) * d.x);
-
-	if ((d1 + d2)*(d1 + d2) < tol * (d.x * d.x + d.y * d.y)) {
-		polygon_add_point(target, bez.pts[3]);
-		return;
-	}
-
-	p123.x = (p12.x + p23.x) * 0.5f;
-	p123.y = (p12.y + p23.y) * 0.5f;
-	p0123.x = (p012.x + p123.x) * 0.5f;
-	p0123.y = (p012.y + p123.y) * 0.5f;
-	struct bezier first_half = {.pts = { bez.pts[0], p01, p012, p0123 }};
-	struct bezier second_half = {.pts = { p0123, p123, p23, bez.pts[3] }};
-	flatten_bezier(target, first_half, depth+1);
-	flatten_bezier(target, second_half, depth+1);
-}
-
-
 static int make_monotone (struct edge_list *edges, struct polygon *src) {
 	struct vertex_tree *vertex_heap; // keep sorted by height
 	struct sweepline_tree *sweepline;

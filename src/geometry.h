@@ -1,9 +1,9 @@
 #ifndef CTRW_GEOMETRY_H
 #define CTRW_GEOMETRY_H
 
-/* Common tools for Bézier curve and polygon operations
- * Only cubic Bézier curves will be considered, so "cubic Bézier"
- * will be shortened simply to "Bézier"
+/* Common tools for Bezier curve and polygon operations
+ * Only cubic Bezier curves will be considered, so "cubic Bezier"
+ * will be shortened simply to "Bezier"
  * */
 #include <SDL3/SDL.h>
 
@@ -17,7 +17,8 @@ struct bezier {
 };
 
 struct polygon {
-	SDL_FPoint *pts;
+	SDL_FPoint *buf, *ptr;
+	size_t size;
 	int npts;
 	int closed;
 };

@@ -4,7 +4,13 @@
 #include "geometry.h"
 #include "test.h"
 
-// Forward declarations of geometry internals
+/* Forward declarations of geometry internals
+ * This module requires tests of internal methods, so rather than writing a
+ * header, these declarations are copied here.
+ *
+ * It violates DRY, but it also forces breaking changes to break tests first,
+ * which encourages good architecture
+ * */
 struct vertex;
 struct edge;
 struct face;
@@ -32,7 +38,9 @@ static SDL_FPoint pts[] = { // The seventh roots of unity
 	{0.6235, -0.7818}
 };
 static struct polygon poly = {
-	.pts = pts,
+	.buf = pts,
+	.ptr = pts,
+	.size = sizeof(pts),
 	.npts = 7,
 	.closed = 1
 };
@@ -47,11 +55,25 @@ static int test_dcel_init (void) {
 	return 0;
 }
 
-// External tests
+static struct bezier bez = {
+	.pts = {
+		{0.0, 0.0},
+		{0.3333, 0.0},
+		{0.6667, 0.0},
+		{1.0, 0.0}
+	}
+};
+static int test_flatten_bezier (void) {
+	int val = sizeof(bez.pts);
+	return val - val;
+}
+
+// Exposed interface tests
 
 
 static struct test TEST_LIST[] = {
 	TEST(test_dcel_init),
+	TEST(test_flatten_bezier)
 };
 EXPORT(TEST_LIST, geometry)
 
